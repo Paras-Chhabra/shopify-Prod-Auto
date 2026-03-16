@@ -1,0 +1,19 @@
+{
+  "name": "shopify-product-automator",
+  "version": "1.0.0",
+  "description": "AI-powered Shopify product automation tool - scrape, process, and upload products automatically",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.0",
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "express": "^4.18.0",
+    "form-data": "^4.0.0",
+    "puppeteer": "^22.0.0",
+    "uuid": "^9.0.0"
+  }
+}

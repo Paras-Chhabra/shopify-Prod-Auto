@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopify Product Automator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon">⚡</div>
+                <div>
+                    <h1>Product Automator</h1>
+                    <p class="logo-sub">AI-Powered Shopify Tool</p>
+                </div>
+            </div>
+            <div class="connection-status" id="connectionStatus">
+                <span class="status-dot"></span>
+                <span class="status-text">Checking...</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Mode Toggle -->
+        <div class="mode-toggle">
+            <button class="mode-btn active" data-mode="single" id="singleModeBtn">
+                <span class="mode-icon">🎯</span> Step-by-Step
+            </button>
+            <button class="mode-btn" data-mode="batch" id="batchModeBtn">
+                <span class="mode-icon">📦</span> Batch Mode
+            </button>
+        </div>
+
+        <!-- URL Input Section -->
+        <section class="card url-section">
+            <div class="card-header">
+                <h2>🔗 Product URL</h2>
+                <p class="card-subtitle" id="urlSubtitle">Paste a reference product URL to get started</p>
+            </div>
+            <div class="input-group">
+                <textarea id="urlInput" class="url-input" placeholder="https://example.com/product/awesome-item"
+                    rows="1"></textarea>
+                <button class="btn btn-primary" id="fetchBtn">
+                    <span class="btn-icon">🔍</span>
+                    <span class="btn-text">Fetch Product</span>
+                    <span class="btn-loader hidden"></span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Preview Section (hidden by default) -->
+        <section class="card preview-section hidden" id="previewSection">
+            <div class="card-header">
+                <h2>📋 Product Preview</h2>
+                <p class="card-subtitle">Review the scraped product data</p>
+            </div>
+
+            <div class="preview-grid">
+                <div class="preview-images">
+                    <h3>🖼️ Original Images</h3>
+                    <div class="image-grid" id="originalImages"></div>
+                </div>
+                <div class="preview-details">
+                    <h3>📝 Product Data</h3>
+                    <div class="form-group">
+                        <label>Title</label>
+                        <input type="text" id="productTitle" class="form-input" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="productDescription" class="form-input form-textarea" readonly></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Price</label>
+                            <input type="text" id="productPrice" class="form-input" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Currency</label>
+                            <input type="text" id="productCurrency" class="form-input" readonly>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Brand</label>
+                        <input type="text" id="productBrand" class="form-input" readonly>
+                    </div>
+                </div>
+            </div>
+
+            <div class="action-bar">
+                <button class="btn btn-primary" id="processImagesBtn">
+                    <span class="btn-icon">🤖</span>
+                    <span class="btn-text">Process Images with AI</span>
+                    <span class="btn-loader hidden"></span>
+                </button>
+                <button class="btn btn-secondary" id="regenerateBtn">
+                    <span class="btn-icon">🔄</span>
+                    <span class="btn-text">Regenerate Images</span>
+                    <span class="btn-loader hidden"></span>
+                </button>
+            </div>
+
+            <!-- Processed Images Comparison (shown after processing) -->
+            <div id="comparisonSection" class="hidden" style="margin-top: 20px;">
+                <h3 style="font-size:14px;font-weight:600;color:var(--text-secondary);margin-bottom:12px;">🔄 Processed
+                    Images</h3>
+                <div class="processed-images-grid" id="processedImagesGrid"></div>
+            </div>
+        </section>
+
+        <!-- Shopify Upload Section (hidden by default) -->
+        <section class="card upload-section hidden" id="uploadSection">
+            <div class="card-header">
+                <h2>🛍️ Create Product on Shopify</h2>
+                <p class="card-subtitle">Review and confirm the details that will be added to your store</p>
+            </div>
+
+            <!-- Final Product Preview -->
+            <div class="shopify-preview">
+                <div class="form-group">
+                    <label for="finalTitle">🎯 Product Title (for Shopify)</label>
+                    <input type="text" id="finalTitle" class="form-input"
+                        placeholder="AI-generated title will appear here">
+                </div>
+
+                <!-- Generate AI Description button -->
+                <div class="action-bar" style="border-top: none; padding-top: 0; margin-bottom: 16px;">
+                    <button class="btn btn-secondary" id="generateContentBtn">
+                        <span class="btn-icon">✨</span>
+                        <span class="btn-text">Generate AI Description</span>
+                        <span class="btn-loader hidden"></span>
+                    </button>
+                </div>
+
+                <div class="form-group">
+                    <label>📝 Live Description Preview</label>
+                    <div class="preview-frame-wrapper">
+                        <iframe id="descriptionPreview" class="preview-iframe" sandbox="allow-same-origin"></iframe>
+                    </div>
+
+                    <!-- Custom Description Prompt -->
+                    <div class="custom-prompt-section" style="margin-top: 12px;">
+                        <label for="customDescPrompt">✏️ Want a different description? Give your instructions:</label>
+                        <textarea id="customDescPrompt" class="form-input form-textarea" rows="2"
+                            placeholder="e.g. Make it more formal. Add a warranty section. Emphasize durability."></textarea>
+                        <button class="btn btn-secondary" id="customDescBtn" style="margin-top: 8px;">
+                            <span class="btn-icon">✍️</span>
+                            <span class="btn-text">Regenerate Description</span>
+                            <span class="btn-loader hidden"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="finalPrice">💰 Price</label>
+                        <input type="text" id="finalPrice" class="form-input" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label for="finalCurrency">💱 Currency</label>
+                        <input type="text" id="finalCurrency" class="form-input" placeholder="INR" value="INR">
+                    </div>
+                </div>
+            </div>
+
+            <hr style="border-color: rgba(255,255,255,0.08); margin: 24px 0;">
+
+            <!-- Shopify-specific Config -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="productType">Product Type</label>
+                    <input type="text" id="productType" class="form-input" placeholder="e.g. T-Shirt, Electronics">
+                </div>
+                <div class="form-group">
+                    <label for="productTags">Tags</label>
+                    <input type="text" id="productTags" class="form-input" placeholder="tag1, tag2, tag3">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="productVendor">Vendor</label>
+                    <input type="text" id="productVendor" class="form-input" placeholder="Your store name">
+                </div>
+                <div class="form-group">
+                    <label for="productStatus">Status</label>
+                    <select id="productStatus" class="form-input">
+                        <option value="draft">Draft</option>
+                        <option value="active">Active (Published)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="productInventory">📦 Inventory</label>
+                    <input type="number" id="productInventory" class="form-input" placeholder="100" value="100">
+                </div>
+                <div class="form-group"></div>
+            </div>
+            <button class="btn btn-success btn-lg" id="createProductBtn">
+                <span class="btn-icon">🚀</span>
+                <span class="btn-text">Create Product on Shopify</span>
+                <span class="btn-loader hidden"></span>
+            </button>
+        </section>
+
+        <!-- Batch Queue Section (hidden by default) -->
+        <section class="card batch-section hidden" id="batchSection">
+            <div class="card-header">
+                <h2>📦 Batch Queue</h2>
+                <p class="card-subtitle" id="batchSubtitle">Processing products...</p>
+            </div>
+            <div class="batch-progress">
+                <div class="batch-progress-bar">
+                    <div class="batch-progress-fill" id="batchProgressFill"></div>
+                </div>
+                <span class="batch-progress-text" id="batchProgressText">0%</span>
+            </div>
+            <div class="batch-list" id="batchList"></div>
+        </section>
+
+        <!-- Progress Section -->
+        <section class="card progress-section hidden" id="progressSection">
+            <div class="card-header">
+                <h2>⏳ Progress</h2>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p class="progress-step" id="progressStep">Starting...</p>
+        </section>
+
+        <!-- Results Section -->
+        <section class="card results-section hidden" id="resultsSection">
+            <div class="card-header">
+                <h2>✅ Product Created!</h2>
+            </div>
+            <div class="result-content" id="resultContent"></div>
+        </section>
+
+        <!-- History Section -->
+        <section class="card history-section">
+            <div class="card-header">
+                <h2>📜 Recent Activity</h2>
+            </div>
+            <div class="history-list" id="historyList">
+                <p class="empty-state">No products added yet. Start by pasting a product URL above!</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
