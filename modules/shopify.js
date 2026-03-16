@@ -243,6 +243,32 @@ async function createProduct(productData) {
                     inventory_quantity: inventoryQuantity || 100,
                 },
             ],
+            metafields: [
+                {
+                    namespace: 'custom',
+                    key: 'show_reviews',
+                    value: 'false',
+                    type: 'boolean',
+                },
+                {
+                    namespace: 'custom',
+                    key: 'show_faq',
+                    value: 'false',
+                    type: 'boolean',
+                },
+                {
+                    namespace: 'custom',
+                    key: 'show_safety',
+                    value: 'false',
+                    type: 'boolean',
+                },
+                {
+                    namespace: 'custom',
+                    key: 'show_benefits',
+                    value: 'false',
+                    type: 'boolean',
+                },
+            ],
         },
     };
 
