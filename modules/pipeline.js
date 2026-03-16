@@ -1,5 +1,5 @@
 const { scrapeProduct } = require('./scraper');
-const { processImages, generateDescription, generateTitle } = require('./gemini');
+const { processImages, generateDescriptionJSON, generateTitle } = require('./gemini');
 const { uploadFile, createProduct } = require('./shopify');
 const { v4: uuidv4 } = require('uuid');
 
@@ -45,7 +45,7 @@ function emitProgress(job, data) {
     }
 }
 
-async function processSingleProduct(url, job, productIndex) {
+async function processSingleProduct(url, job, productIndex, customApiKey = null) {
     const totalProducts = job ? job.totalProducts : 1;
     const basePercent = job ? (productIndex / totalProducts) * 100 : 0;
     const productWeight = 100 / totalProducts;
@@ -81,17 +81,21 @@ async function processSingleProduct(url, job, productIndex) {
         let processedImages = [];
         if (scrapedData.localImages && scrapedData.localImages.length > 0) {
             const imagePaths = scrapedData.localImages.map(img => img.localPath);
-            processedImages = await processImages(imagePaths);
+            processedImages = await processImages(imagePaths, customApiKey);
             updateProgress('Images processed', 55);
         } else {
             updateProgress('No images to process', 55);
         }
 
         updateProgress('Generating product description...', 55);
-        const [newTitle, newDescription] = await Promise.all([
-            generateTitle(scrapedData),
-            generateDescription(scrapedData),
+        const [newTitle, newDescriptionJSON] = await Promise.all([
+            generateTitle(scrapedData, customApiKey),
+            generateDescriptionJSON(scrapedData, customApiKey),
         ]);
+
+        // IMPORTANT: pipeline.js previously passed newDescription directly to bodyHtml. 
+        // We need to render the template. Since pipeline is headless, it should use the template.
+        const { productTemplate } = require('../templates/productDescriptionTemplate');
         updateProgress('Description generated', 65);
 
         updateProgress('Uploading images to Shopify...', 65);
@@ -112,10 +116,12 @@ async function processSingleProduct(url, job, productIndex) {
             }
         }
 
+        const finalBodyHtml = productTemplate(newDescriptionJSON, uploadedImages);
+
         updateProgress('Creating product on Shopify...', 85);
         const product = await createProduct({
             title: newTitle,
-            bodyHtml: newDescription,
+            bodyHtml: finalBodyHtml,
             images: uploadedImages,
             price: scrapedData.price || '0.00',
             vendor: '',
@@ -167,13 +173,13 @@ async function processSingleProduct(url, job, productIndex) {
     }
 }
 
-async function runSingle(url) {
+async function runSingle(url, customApiKey = null) {
     const job = createJob([url]);
     job.status = 'running';
 
     emitProgress(job, { type: 'started', mode: 'single' });
 
-    const result = await processSingleProduct(url, job, 0);
+    const result = await processSingleProduct(url, job, 0, customApiKey);
 
     job.status = 'completed';
     emitProgress(job, { type: 'completed', results: [result] });
@@ -181,14 +187,14 @@ async function runSingle(url) {
     return { jobId: job.id, ...result };
 }
 
-async function runBatch(urls) {
+async function runBatch(urls, customApiKey = null) {
     const job = createJob(urls);
     job.status = 'running';
 
     emitProgress(job, { type: 'started', mode: 'batch', totalProducts: urls.length });
 
     for (let i = 0; i < urls.length; i++) {
-        await processSingleProduct(urls[i], job, i);
+        await processSingleProduct(urls[i], job, i, customApiKey);
         if (i < urls.length - 1) {
             await new Promise(r => setTimeout(r, 2000));
         }

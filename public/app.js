@@ -24,6 +24,8 @@ const els = {
     urlInput: $('#urlInput'),
     urlSubtitle: $('#urlSubtitle'),
     fetchBtn: $('#fetchBtn'),
+    customApiKey: $('#customApiKey'),
+    logoutBtn: $('#logoutBtn'),
     previewSection: $('#previewSection'),
     originalImages: $('#originalImages'),
     productTitle: $('#productTitle'),
@@ -108,6 +110,19 @@ async function init() {
     // Custom description regeneration
     els.customDescBtn.addEventListener('click', handleCustomDescRegenerate);
 
+    // Logout listener
+    if (els.logoutBtn) {
+        els.logoutBtn.addEventListener('click', async () => {
+            try {
+                await fetch('/auth/logout', { method: 'POST' });
+                window.location.href = '/login.html';
+            } catch (err) {
+                console.error('Logout error:', err);
+                window.location.href = '/login.html';
+            }
+        });
+    }
+
     // Auto-resize textarea
     els.urlInput.addEventListener('input', () => {
         if (state.mode === 'batch') {
@@ -142,6 +157,17 @@ function setMode(mode) {
     }
 }
 
+/**
+ * Handle 401 Unauthorized globally for fetch calls
+ */
+function handleAuthError(res) {
+    if (res.status === 401 || res.status === 403) {
+        window.location.href = '/login.html';
+        return true;
+    }
+    return false;
+}
+
 // ============================================================
 // Single Mode — Fetch
 // ============================================================
@@ -166,6 +192,8 @@ async function handleFetch() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: input }),
         });
+
+        if (handleAuthError(res)) return;
 
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
@@ -266,12 +294,15 @@ async function handleProcessImages() {
 
     try {
         const imagePaths = state.scrapedData.localImages.map((img) => img.localPath);
+        const customApiKey = els.customApiKey.value.trim();
 
         const res = await fetch('/api/process-images', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imagePaths }),
+            body: JSON.stringify({ imagePaths, customApiKey }),
         });
+
+        if (handleAuthError(res)) return;
 
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
@@ -356,12 +387,15 @@ async function handlePerImageRegenerate(index) {
     try {
         // Use the current processed image path for regeneration
         const imagePath = state.processedImages[index].processedPath;
+        const customApiKey = els.customApiKey.value.trim();
 
         const res = await fetch('/api/process-image-custom', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imagePath, customPrompt }),
+            body: JSON.stringify({ imagePath, customPrompt, customApiKey }),
         });
+
+        if (handleAuthError(res)) return;
 
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
@@ -397,6 +431,7 @@ async function handleGenerateContent() {
     try {
         // Collect image URLs for description template
         const imageUrls = getProcessedImageUrls();
+        const customApiKey = els.customApiKey.value.trim();
 
         const res = await fetch('/api/generate-content', {
             method: 'POST',
@@ -410,8 +445,11 @@ async function handleGenerateContent() {
                     currency: state.scrapedData.currency,
                 },
                 imageUrls,
+                customApiKey
             }),
         });
+
+        if (handleAuthError(res)) return;
 
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
@@ -443,6 +481,7 @@ async function handleCustomDescRegenerate() {
 
     try {
         const imageUrls = getProcessedImageUrls();
+        const customApiKey = els.customApiKey.value.trim();
 
         const res = await fetch('/api/regenerate-description', {
             method: 'POST',
@@ -458,8 +497,11 @@ async function handleCustomDescRegenerate() {
                 customPrompt,
                 imageUrls,
                 existingJSON: state.descriptionJSON,
+                customApiKey
             }),
         });
+
+        if (handleAuthError(res)) return;
 
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
@@ -512,6 +554,8 @@ async function handleCreateProduct() {
                 inventoryQuantity: parseInt(els.productInventory.value) || 100,
             }),
         });
+
+        if (handleAuthError(res)) return;
 
         showProgress('Finalizing...', 80);
 
@@ -576,11 +620,18 @@ async function handleBatch(input) {
 
     // Start batch
     try {
+        const customApiKey = els.customApiKey.value.trim();
+
+        const payload = { urls };
+        if (customApiKey) payload.customApiKey = customApiKey;
+
         const res = await fetch('/api/batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ urls }),
+            body: JSON.stringify(payload),
         });
+
+        if (handleAuthError(res)) return;
 
         const data = await res.json();
         if (!data.success) throw new Error(data.error);

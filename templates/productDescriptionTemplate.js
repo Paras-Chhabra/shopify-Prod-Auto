@@ -23,8 +23,8 @@ function productTemplate(data, imageUrls = []) {
 .pd-card .emoji{font-size:32px;margin-bottom:8px;display:block}
 .pd-card h4{font-size:15px;font-weight:700;color:#1a1a2e;margin:0 0 6px}
 .pd-card p{font-size:13px;color:#6b7280;margin:0;line-height:1.5}
-.pd-img-section{margin-bottom:28px;text-align:center}
-.pd-img-section img{width:100%;max-width:720px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+.pd-img-section{margin-bottom:28px;text-align:center;display:flex;justify-content:center;align-items:center}
+.pd-img-section img{width:100%;max-width:720px;display:block;margin:0 auto;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.08);height:auto}
 .pd-box{margin-bottom:28px}
 .pd-box-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .pd-box-item{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:16px;display:flex;align-items:flex-start;gap:12px}
@@ -58,12 +58,31 @@ function productTemplate(data, imageUrls = []) {
 .pd-delivery-grid{display:flex;justify-content:center;gap:28px;flex-wrap:wrap}
 .pd-delivery-item{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#1e40af}
 .pd-delivery-item .icon{font-size:20px}
-@media(max-width:640px){
-.pd-angles{grid-template-columns:1fr}
+@media(max-width:768px){
+.pd-wrap{padding:0 12px}
+.pd-hero{padding:24px 16px 20px}
+.pd-hero h2{font-size:22px}
+.pd-hero p{font-size:14px}
+.pd-angles{grid-template-columns:1fr 1fr}
 .pd-box-grid{grid-template-columns:1fr}
+.pd-promise-grid{grid-template-columns:1fr 1fr}
+.pd-features th,.pd-features td{padding:10px 12px;font-size:13px}
+.pd-delivery{padding:18px 14px}
+.pd-delivery-grid{gap:16px}
+.pd-section-title{font-size:18px}
+.pd-img-section img{max-width:100%;border-radius:8px}
+}
+@media(max-width:480px){
+.pd-angles{grid-template-columns:1fr}
 .pd-promise-grid{grid-template-columns:1fr}
 .pd-delivery-grid{flex-direction:column;align-items:center;gap:12px}
-.pd-hero h2{font-size:22px}
+.pd-hero h2{font-size:20px}
+.pd-hero p{font-size:13px}
+.pd-card{padding:18px 14px}
+.pd-review{padding:14px 16px}
+.pd-faq-q{padding:12px 14px;font-size:13px}
+.pd-faq-a{padding:10px 14px;font-size:12px}
+.pd-delivery-item{font-size:13px}
 }
 </style>`);
 

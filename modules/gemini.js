@@ -10,7 +10,11 @@ if (!fs.existsSync(PROCESSED_DIR)) fs.mkdirSync(PROCESSED_DIR, { recursive: true
 
 let genAI = null;
 
-function getClient() {
+function getClient(customKey = null) {
+    if (customKey) {
+        return new GoogleGenAI({ apiKey: customKey });
+    }
+
     if (!genAI) {
         if (!process.env.GEMINI_API_KEY) {
             throw new Error('GEMINI_API_KEY is not configured in .env');
@@ -24,8 +28,8 @@ function getClient() {
  * Process a single image — strict logo editing only.
  * Removes brand logo/name and replaces with "gigglo" where removed.
  */
-async function processImage(imagePath) {
-    const client = getClient();
+async function processImage(imagePath, customApiKey = null) {
+    const client = getClient(customApiKey);
 
     const imageBuffer = fs.readFileSync(imagePath);
     const base64Image = imageBuffer.toString('base64');
@@ -112,11 +116,11 @@ Output ONLY the edited image.`,
 /**
  * Process multiple images sequentially
  */
-async function processImages(imagePaths) {
+async function processImages(imagePaths, customApiKey = null) {
     const results = [];
     for (let i = 0; i < imagePaths.length; i++) {
         console.log(`Processing image ${i + 1}/${imagePaths.length}...`);
-        const result = await processImage(imagePaths[i]);
+        const result = await processImage(imagePaths[i], customApiKey);
         results.push(result);
         if (i < imagePaths.length - 1) {
             await new Promise(r => setTimeout(r, 1000));
@@ -128,8 +132,8 @@ async function processImages(imagePaths) {
 /**
  * Process a SINGLE image with a user-provided custom prompt
  */
-async function processImageWithPrompt(imagePath, customPrompt) {
-    const client = getClient();
+async function processImageWithPrompt(imagePath, customPrompt, customApiKey = null) {
+    const client = getClient(customApiKey);
 
     const imageBuffer = fs.readFileSync(imagePath);
     const base64Image = imageBuffer.toString('base64');
@@ -206,8 +210,8 @@ Output ONLY the edited image.`,
  * Generate structured product description JSON.
  * Returns a parsed object ready for the master HTML template.
  */
-async function generateDescriptionJSON(productData) {
-    const client = getClient();
+async function generateDescriptionJSON(productData, customApiKey = null) {
+    const client = getClient(customApiKey);
 
     const prompt = `You are a professional Shopify product copywriter and conversion specialist.
 
@@ -292,8 +296,8 @@ RULES:
 /**
  * Regenerate description JSON with a custom user prompt applied.
  */
-async function generateDescriptionJSONWithPrompt(productData, customPrompt, existingJSON) {
-    const client = getClient();
+async function generateDescriptionJSONWithPrompt(productData, customPrompt, existingJSON, customApiKey = null) {
+    const client = getClient(customApiKey);
 
     const existingContext = existingJSON ? `\nCurrent JSON data:\n${JSON.stringify(existingJSON, null, 2)}\n` : '';
 

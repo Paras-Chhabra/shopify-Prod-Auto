@@ -9,15 +9,76 @@ const { productTemplate } = require('./templates/productDescriptionTemplate');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const cookieParser = require('cookie-parser');
 
 app.use(express.json({ limit: '50mb' }));
+app.use(cookieParser());
+
+// ============================================================
+// Auth Middleware
+// ============================================================
+const requireAuth = (req, res, next) => {
+    // If no password configured, skip auth
+    if (!process.env.APP_PASSWORD) {
+        return next();
+    }
+
+    // Check if the auth token matches the password
+    if (req.cookies.auth_token === process.env.APP_PASSWORD) {
+        return next();
+    }
+
+    // If it's an API route, send 401 Unauthorized
+    if (req.path.startsWith('/api/')) {
+        return res.status(401).json({ error: 'Unauthorized: Session expired or invalid' });
+    }
+
+    // Otherwise redirect to login
+    res.redirect('/login.html');
+};
+
+// Apply auth to index.html and root, but allow other static files (like login.html, css, js)
+app.use((req, res, next) => {
+    if (req.path === '/' || req.path === '/index.html') {
+        return requireAuth(req, res, next);
+    }
+    next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 // Serve temp directory for image previews
 app.use('/temp', express.static(path.join(__dirname, 'temp')));
 
 // ============================================================
-// API Routes
+// API Routes (Protected)
 // ============================================================
+app.use('/api', requireAuth);
+
+/**
+ * Handle Login
+ */
+app.post('/auth/login', (req, res) => {
+    const { password } = req.body;
+    if (!process.env.APP_PASSWORD || password === process.env.APP_PASSWORD) {
+        const expiresIn = 30 * 24 * 60 * 60 * 1000; // 30 days
+        res.cookie('auth_token', process.env.APP_PASSWORD, {
+            maxAge: expiresIn,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production'
+        });
+        res.json({ success: true });
+    } else {
+        res.status(401).json({ success: false, error: 'Incorrect password' });
+    }
+});
+
+/**
+ * Handle Logout
+ */
+app.post('/auth/logout', (req, res) => {
+    res.clearCookie('auth_token');
+    res.json({ success: true });
+});
 
 /**
  * Test Shopify connection
@@ -81,7 +142,7 @@ app.post('/api/process-image-custom', async (req, res) => {
         }
 
         console.log(`Regenerating single image with prompt: "${customPrompt.substring(0, 60)}..."`);
-        const result = await processImageWithPrompt(imagePath, customPrompt);
+        const result = await processImageWithPrompt(imagePath, customPrompt, customApiKey);
         res.json({ success: true, result });
     } catch (error) {
         console.error('Custom image processing error:', error);
@@ -94,15 +155,15 @@ app.post('/api/process-image-custom', async (req, res) => {
  */
 app.post('/api/generate-content', async (req, res) => {
     try {
-        const { productData, imageUrls } = req.body;
+        const { productData, imageUrls, customApiKey } = req.body;
         if (!productData) {
             return res.status(400).json({ error: 'productData is required' });
         }
 
         console.log('Generating title and description JSON...');
         const [title, descriptionJSON] = await Promise.all([
-            generateTitle(productData),
-            generateDescriptionJSON(productData),
+            generateTitle(productData, customApiKey),
+            generateDescriptionJSON(productData, customApiKey),
         ]);
 
         // Render JSON through the master HTML template
@@ -129,7 +190,7 @@ app.post('/api/regenerate-description', async (req, res) => {
         }
 
         console.log(`Regenerating description with custom prompt: "${customPrompt.substring(0, 60)}..."`);
-        const descriptionJSON = await generateDescriptionJSONWithPrompt(productData, customPrompt, existingJSON);
+        const descriptionJSON = await generateDescriptionJSONWithPrompt(productData, customPrompt, existingJSON, customApiKey);
 
         // Render through template
         const descriptionHtml = productTemplate(descriptionJSON, imageUrls || []);
@@ -207,10 +268,10 @@ app.post('/api/create-product', async (req, res) => {
  */
 app.post('/api/automate', async (req, res) => {
     try {
-        const { url } = req.body;
+        const { url, customApiKey } = req.body;
         if (!url) return res.status(400).json({ error: 'URL is required' });
 
-        const result = await runSingle(url);
+        const result = await runSingle(url, customApiKey);
         res.json(result);
     } catch (error) {
         console.error('Automation error:', error);
