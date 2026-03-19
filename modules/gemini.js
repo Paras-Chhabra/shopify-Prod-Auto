@@ -79,9 +79,17 @@ Output ONLY the edited image.`,
             },
         });
 
+        console.log('Gemini response received. Checking for image data...');
+        console.log('Candidates:', response.candidates?.length || 0);
+
         if (response.candidates && response.candidates[0]?.content?.parts) {
-            for (const part of response.candidates[0].content.parts) {
+            const parts = response.candidates[0].content.parts;
+            console.log(`Response has ${parts.length} part(s)`);
+
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
                 if (part.inlineData) {
+                    console.log(`Part ${i}: inlineData found (mimeType: ${part.inlineData.mimeType}, size: ${part.inlineData.data?.length || 0} chars)`);
                     const outputFilename = `processed_${uuidv4()}.png`;
                     const outputPath = path.join(PROCESSED_DIR, outputFilename);
                     const outputBuffer = Buffer.from(part.inlineData.data, 'base64');
@@ -93,11 +101,24 @@ Output ONLY the edited image.`,
                         processedPath: outputPath,
                         filename: outputFilename,
                     };
+                } else if (part.text) {
+                    console.log(`Part ${i}: TEXT response: "${part.text.substring(0, 200)}"`);
+                } else {
+                    console.log(`Part ${i}: Unknown part type:`, Object.keys(part));
+                }
+            }
+        } else {
+            console.warn('No candidates or no parts in response');
+            console.log('Full response keys:', Object.keys(response));
+            if (response.candidates?.[0]) {
+                console.log('Candidate[0] keys:', Object.keys(response.candidates[0]));
+                if (response.candidates[0].content) {
+                    console.log('Content keys:', Object.keys(response.candidates[0].content));
                 }
             }
         }
 
-        console.warn('No image returned, using original');
+        console.warn('No image returned from Gemini, using original');
         return {
             success: false,
             originalPath: imagePath,
@@ -107,13 +128,8 @@ Output ONLY the edited image.`,
         };
     } catch (error) {
         console.error(`Image processing error: ${error.message}`);
-        return {
-            success: false,
-            originalPath: imagePath,
-            processedPath: imagePath,
-            filename: path.basename(imagePath),
-            error: error.message,
-        };
+        // Throw so the caller knows it failed (e.g. quota exceeded)
+        throw new Error(`AI image processing failed: ${error.message}`);
     }
 }
 
@@ -122,13 +138,30 @@ Output ONLY the edited image.`,
  */
 async function processImages(imagePaths, customApiKey = null, brandName = '') {
     const results = [];
+    let failCount = 0;
     for (let i = 0; i < imagePaths.length; i++) {
         console.log(`Processing image ${i + 1}/${imagePaths.length}...`);
-        const result = await processImage(imagePaths[i], customApiKey, brandName);
-        results.push(result);
+        try {
+            const result = await processImage(imagePaths[i], customApiKey, brandName);
+            results.push(result);
+        } catch (err) {
+            console.error(`Image ${i + 1} failed: ${err.message}`);
+            failCount++;
+            // Fall back to original for this image in batch mode
+            results.push({
+                success: false,
+                originalPath: imagePaths[i],
+                processedPath: imagePaths[i],
+                filename: path.basename(imagePaths[i]),
+                error: err.message,
+            });
+        }
         if (i < imagePaths.length - 1) {
             await new Promise(r => setTimeout(r, 1000));
         }
+    }
+    if (failCount === imagePaths.length) {
+        throw new Error(`All ${failCount} images failed to process. Check your API key quota.`);
     }
     return results;
 }
@@ -190,23 +223,11 @@ Output ONLY the edited image.`,
             }
         }
 
-        console.warn('No image returned for custom prompt, using original');
-        return {
-            success: false,
-            originalPath: imagePath,
-            processedPath: imagePath,
-            filename: path.basename(imagePath),
-            note: 'Custom processing failed - using original image',
-        };
+        console.warn('No image returned for custom prompt');
+        throw new Error('AI returned no edited image — the model may not have understood the prompt');
     } catch (error) {
         console.error(`Custom image processing error: ${error.message}`);
-        return {
-            success: false,
-            originalPath: imagePath,
-            processedPath: imagePath,
-            filename: path.basename(imagePath),
-            error: error.message,
-        };
+        throw new Error(`AI image regeneration failed: ${error.message}`);
     }
 }
 
