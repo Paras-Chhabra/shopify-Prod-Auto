@@ -295,11 +295,12 @@ async function handleProcessImages() {
     try {
         const imagePaths = state.scrapedData.localImages.map((img) => img.localPath);
         const customApiKey = els.customApiKey.value.trim();
+        const brand = els.productBrand.value.trim();
 
         const res = await fetch('/api/process-images', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imagePaths, customApiKey }),
+            body: JSON.stringify({ imagePaths, customApiKey, brand }),
         });
 
         if (handleAuthError(res)) return;

@@ -28,12 +28,16 @@ function getClient(customKey = null) {
  * Process a single image — strict logo editing only.
  * Removes brand logo/name and replaces with "gigglo" where removed.
  */
-async function processImage(imagePath, customApiKey = null) {
+async function processImage(imagePath, customApiKey = null, brandName = '') {
     const client = getClient(customApiKey);
 
     const imageBuffer = fs.readFileSync(imagePath);
     const base64Image = imageBuffer.toString('base64');
     const mimeType = getMimeType(imagePath);
+
+    const brandHint = brandName
+        ? `\nThe brand name on this product is "${brandName}". Look specifically for this name or its logo.`
+        : '';
 
     try {
         const response = await client.models.generateContent({
@@ -56,7 +60,7 @@ STRICT RULES — follow every single one:
 3. Do NOT change the background, lighting, shadows, reflections, or composition.
 4. Do NOT redesign, recreate, or regenerate the product image.
 5. Do NOT add any new elements, decorations, or effects.
-
+${brandHint}
 YOUR ONLY TASK:
 - Find any BRAND LOGO or BRAND NAME text printed/displayed on the product or packaging.
 - Remove it cleanly by filling with surrounding pixels to match the surface.
@@ -116,11 +120,11 @@ Output ONLY the edited image.`,
 /**
  * Process multiple images sequentially
  */
-async function processImages(imagePaths, customApiKey = null) {
+async function processImages(imagePaths, customApiKey = null, brandName = '') {
     const results = [];
     for (let i = 0; i < imagePaths.length; i++) {
         console.log(`Processing image ${i + 1}/${imagePaths.length}...`);
-        const result = await processImage(imagePaths[i], customApiKey);
+        const result = await processImage(imagePaths[i], customApiKey, brandName);
         results.push(result);
         if (i < imagePaths.length - 1) {
             await new Promise(r => setTimeout(r, 1000));

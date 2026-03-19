@@ -114,13 +114,13 @@ app.post('/api/scrape', async (req, res) => {
  */
 app.post('/api/process-images', async (req, res) => {
     try {
-        const { imagePaths } = req.body;
+        const { imagePaths, customApiKey, brand } = req.body;
         if (!imagePaths || !imagePaths.length) {
             return res.status(400).json({ error: 'imagePaths array is required' });
         }
 
-        console.log(`Processing ${imagePaths.length} images...`);
-        const results = await processImages(imagePaths);
+        console.log(`Processing ${imagePaths.length} images... (brand: ${brand || 'auto-detect'})`);
+        const results = await processImages(imagePaths, customApiKey, brand);
         res.json({ success: true, results });
     } catch (error) {
         console.error('Image processing error:', error);

@@ -81,7 +81,7 @@ async function processSingleProduct(url, job, productIndex, customApiKey = null)
         let processedImages = [];
         if (scrapedData.localImages && scrapedData.localImages.length > 0) {
             const imagePaths = scrapedData.localImages.map(img => img.localPath);
-            processedImages = await processImages(imagePaths, customApiKey);
+            processedImages = await processImages(imagePaths, customApiKey, scrapedData.brand || '');
             updateProgress('Images processed', 55);
         } else {
             updateProgress('No images to process', 55);
