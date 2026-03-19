@@ -133,7 +133,7 @@ app.post('/api/process-images', async (req, res) => {
  */
 app.post('/api/process-image-custom', async (req, res) => {
     try {
-        const { imagePath, customPrompt } = req.body;
+        const { imagePath, customPrompt, customApiKey } = req.body;
         if (!imagePath) {
             return res.status(400).json({ error: 'imagePath is required' });
         }
@@ -181,7 +181,7 @@ app.post('/api/generate-content', async (req, res) => {
  */
 app.post('/api/regenerate-description', async (req, res) => {
     try {
-        const { productData, customPrompt, imageUrls, existingJSON } = req.body;
+        const { productData, customPrompt, imageUrls, existingJSON, customApiKey } = req.body;
         if (!productData) {
             return res.status(400).json({ error: 'productData is required' });
         }
@@ -284,7 +284,7 @@ app.post('/api/automate', async (req, res) => {
  */
 app.post('/api/batch', async (req, res) => {
     try {
-        const { urls } = req.body;
+        const { urls, customApiKey } = req.body;
         if (!urls || !Array.isArray(urls) || urls.length === 0) {
             return res.status(400).json({ error: 'urls array is required' });
         }
@@ -296,7 +296,7 @@ app.post('/api/batch', async (req, res) => {
         setImmediate(async () => {
             job.status = 'running';
             for (let i = 0; i < urls.length; i++) {
-                await require('./modules/pipeline').processSingleProduct(urls[i], job, i);
+                await require('./modules/pipeline').processSingleProduct(urls[i], job, i, customApiKey);
                 if (i < urls.length - 1) {
                     await new Promise(r => setTimeout(r, 2000));
                 }
