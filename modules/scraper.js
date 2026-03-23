@@ -156,7 +156,19 @@ async function scrapeProduct(url) {
             }
         });
 
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+        // Try networkidle2 first (waits for all requests to finish), fall back to domcontentloaded
+        try {
+            await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+        } catch (navErr) {
+            if (navErr.message.includes('timeout') || navErr.message.includes('Timeout')) {
+                console.warn('networkidle2 timed out, retrying with domcontentloaded...');
+                await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+                // Give extra time for images/scripts to load
+                await new Promise(r => setTimeout(r, 3000));
+            } else {
+                throw navErr;
+            }
+        }
 
         // Scroll down to trigger lazy-loaded images
         await autoScroll(page);
