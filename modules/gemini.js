@@ -26,9 +26,9 @@ function getClient(customKey = null) {
 
 /**
  * Process a single image — strict logo editing only.
- * Removes brand logo/name and replaces with "gigglo" where removed.
+ * Removes brand logo/name and replaces with ourBrand where removed.
  */
-async function processImage(imagePath, customApiKey = null, brandName = '') {
+async function processImage(imagePath, customApiKey = null, brandName = '', ourBrand = 'gigglo') {
     const client = getClient(customApiKey);
 
     const imageBuffer = fs.readFileSync(imagePath);
@@ -64,10 +64,10 @@ ${brandHint}
 YOUR ONLY TASK:
 - Find any BRAND LOGO or BRAND NAME text printed/displayed on the product or packaging.
 - Remove it cleanly by filling with surrounding pixels to match the surface.
-- In the EXACT same position and at a SIMILAR size, place the text "gigglo" in a style that looks natural on that surface (matching the approximate font weight, color that contrasts with the surface, and orientation of the original brand text).
+- In the EXACT same position and at a SIMILAR size, place the text "${ourBrand}" in a style that looks natural on that surface (matching the approximate font weight, color that contrasts with the surface, and orientation of the original brand text).
 
 CRITICAL:
-- If the image does NOT contain any visible brand logo or brand name text, return the image COMPLETELY UNCHANGED. Do NOT add "gigglo" anywhere.
+- If the image does NOT contain any visible brand logo or brand name text, return the image COMPLETELY UNCHANGED. Do NOT add "${ourBrand}" anywhere.
 - Only replace what was there. Do not invent logo placements.
 
 Output ONLY the edited image.`,
@@ -136,13 +136,13 @@ Output ONLY the edited image.`,
 /**
  * Process multiple images sequentially
  */
-async function processImages(imagePaths, customApiKey = null, brandName = '') {
+async function processImages(imagePaths, customApiKey = null, brandName = '', ourBrand = 'gigglo') {
     const results = [];
     let failCount = 0;
     for (let i = 0; i < imagePaths.length; i++) {
         console.log(`Processing image ${i + 1}/${imagePaths.length}...`);
         try {
-            const result = await processImage(imagePaths[i], customApiKey, brandName);
+            const result = await processImage(imagePaths[i], customApiKey, brandName, ourBrand);
             results.push(result);
         } catch (err) {
             console.error(`Image ${i + 1} failed: ${err.message}`);

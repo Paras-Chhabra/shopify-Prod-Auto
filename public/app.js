@@ -8,7 +8,9 @@ const state = {
     processedImages: [],
     generatedTitle: '',
     descriptionJSON: null,
-    descriptionHtml: '',
+    descriptionHtmlA: '',
+    descriptionHtmlB: '',
+    selectedTemplate: 'A',
     currentJobId: null,
     history: JSON.parse(localStorage.getItem('productHistory') || '[]'),
 };
@@ -40,7 +42,13 @@ const els = {
     processedImagesGrid: $('#processedImagesGrid'),
     uploadSection: $('#uploadSection'),
     finalTitle: $('#finalTitle'),
-    descriptionPreview: $('#descriptionPreview'),
+    descriptionPreviewA: $('#descriptionPreviewA'),
+    descriptionPreviewB: $('#descriptionPreviewB'),
+    tabA: $('#tabA'),
+    tabB: $('#tabB'),
+    templateChoiceA: $('#templateChoiceA'),
+    templateChoiceB: $('#templateChoiceB'),
+    ourBrandName: $('#ourBrandName'),
     customDescPrompt: $('#customDescPrompt'),
     customDescBtn: $('#customDescBtn'),
     finalPrice: $('#finalPrice'),
@@ -296,11 +304,12 @@ async function handleProcessImages() {
         const imagePaths = state.scrapedData.localImages.map((img) => img.localPath);
         const customApiKey = els.customApiKey.value.trim();
         const brand = els.productBrand.value.trim();
+        const ourBrand = els.ourBrandName.value.trim() || 'gigglo';
 
         const res = await fetch('/api/process-images', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imagePaths, customApiKey, brand }),
+            body: JSON.stringify({ imagePaths, customApiKey, brand, ourBrand }),
         });
 
         if (handleAuthError(res)) return;
@@ -457,10 +466,12 @@ async function handleGenerateContent() {
 
         state.generatedTitle = data.title;
         state.descriptionJSON = data.descriptionJSON;
-        state.descriptionHtml = data.descriptionHtml;
+        state.descriptionHtmlA = data.descriptionHtmlA;
+        state.descriptionHtmlB = data.descriptionHtmlB;
 
         els.finalTitle.value = data.title;
-        updatePreviewIframe(data.descriptionHtml);
+        updatePreviewIframe(els.descriptionPreviewA, data.descriptionHtmlA);
+        updatePreviewIframe(els.descriptionPreviewB, data.descriptionHtmlB);
 
         showToast('Title and description generated!', 'success');
     } catch (err) {
@@ -508,8 +519,10 @@ async function handleCustomDescRegenerate() {
         if (!data.success) throw new Error(data.error);
 
         state.descriptionJSON = data.descriptionJSON;
-        state.descriptionHtml = data.descriptionHtml;
-        updatePreviewIframe(data.descriptionHtml);
+        state.descriptionHtmlA = data.descriptionHtmlA;
+        state.descriptionHtmlB = data.descriptionHtmlB;
+        updatePreviewIframe(els.descriptionPreviewA, data.descriptionHtmlA);
+        updatePreviewIframe(els.descriptionPreviewB, data.descriptionHtmlB);
         showToast('Description regenerated with your instructions!', 'success');
     } catch (err) {
         showToast(`Description regeneration failed: ${err.message}`, 'error');
@@ -544,7 +557,7 @@ async function handleCreateProduct() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 title,
-                bodyHtml: state.descriptionHtml || '',
+                bodyHtml: (state.selectedTemplate === 'B' ? state.descriptionHtmlB : state.descriptionHtmlA) || '',
                 descriptionJSON: state.descriptionJSON || null,
                 imagePaths,
                 price: els.finalPrice.value || '0.00',
@@ -827,8 +840,7 @@ function getProcessedImageUrls() {
     return urls;
 }
 
-function updatePreviewIframe(html) {
-    const iframe = els.descriptionPreview;
+function updatePreviewIframe(iframe, html) {
     const doc = iframe.contentDocument || iframe.contentWindow.document;
     doc.open();
     doc.write(`<!DOCTYPE html>
@@ -854,6 +866,33 @@ function updatePreviewIframe(html) {
         } catch (e) { /* cross-origin guard */ }
     }, 200);
 }
+
+/**
+ * Switch between Template A and Template B tabs
+ */
+function switchTemplateTab(tab) {
+    state.selectedTemplate = tab;
+    if (tab === 'A') {
+        els.descriptionPreviewA.style.display = '';
+        els.descriptionPreviewB.style.display = 'none';
+        els.tabA.style.background = 'var(--accent-primary)';
+        els.tabA.style.color = '#fff';
+        els.tabB.style.background = 'rgba(255,255,255,0.05)';
+        els.tabB.style.color = 'var(--text-muted)';
+        els.templateChoiceA.checked = true;
+    } else {
+        els.descriptionPreviewA.style.display = 'none';
+        els.descriptionPreviewB.style.display = '';
+        els.tabB.style.background = 'var(--accent-primary)';
+        els.tabB.style.color = '#fff';
+        els.tabA.style.background = 'rgba(255,255,255,0.05)';
+        els.tabA.style.color = 'var(--text-muted)';
+        els.templateChoiceB.checked = true;
+    }
+}
+
+// Make switchTemplateTab accessible globally (called from inline onclick)
+window.switchTemplateTab = switchTemplateTab;
 
 // ============================================================
 // UI Helpers

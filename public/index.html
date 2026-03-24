@@ -113,6 +113,12 @@
                         <input type="text" id="productBrand" class="form-input"
                             placeholder="Enter brand name to remove from images">
                     </div>
+                    <div class="form-group">
+                        <label>🏷️ Our Brand Name <span
+                                style="font-weight:400;color:var(--text-muted);font-size:12px;">(replaces removed brand
+                                on images, default: gigglo)</span></label>
+                        <input type="text" id="ourBrandName" class="form-input" placeholder="gigglo">
+                    </div>
                 </div>
             </div>
 
@@ -163,8 +169,36 @@
 
                 <div class="form-group">
                     <label>📝 Live Description Preview</label>
+
+                    <!-- Template tabs -->
+                    <div style="display:flex;gap:0;margin-bottom:0;border-bottom:2px solid rgba(255,255,255,0.08);">
+                        <button type="button" class="template-tab active" id="tabA" onclick="switchTemplateTab('A')"
+                            style="padding:10px 20px;font-size:13px;font-weight:600;background:var(--accent-primary);color:#fff;border:none;border-radius:8px 8px 0 0;cursor:pointer;transition:all .2s;">Template
+                            A — Premium</button>
+                        <button type="button" class="template-tab" id="tabB" onclick="switchTemplateTab('B')"
+                            style="padding:10px 20px;font-size:13px;font-weight:600;background:rgba(255,255,255,0.05);color:var(--text-muted);border:none;border-radius:8px 8px 0 0;cursor:pointer;transition:all .2s;">Template
+                            B — Editorial</button>
+                    </div>
+
                     <div class="preview-frame-wrapper">
-                        <iframe id="descriptionPreview" class="preview-iframe" sandbox="allow-same-origin"></iframe>
+                        <iframe id="descriptionPreviewA" class="preview-iframe" sandbox="allow-same-origin"></iframe>
+                        <iframe id="descriptionPreviewB" class="preview-iframe" sandbox="allow-same-origin"
+                            style="display:none;"></iframe>
+                    </div>
+
+                    <!-- Template selection -->
+                    <div
+                        style="display:flex;align-items:center;gap:16px;margin-top:10px;padding:12px 16px;background:rgba(124,58,237,0.08);border-radius:10px;border:1px solid rgba(124,58,237,0.2);">
+                        <span style="font-size:13px;font-weight:600;color:var(--text-secondary);">Use for
+                            Shopify:</span>
+                        <label
+                            style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-primary);">
+                            <input type="radio" name="templateChoice" value="A" checked id="templateChoiceA"> Template A
+                        </label>
+                        <label
+                            style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-primary);">
+                            <input type="radio" name="templateChoice" value="B" id="templateChoiceB"> Template B
+                        </label>
                     </div>
 
                     <!-- Custom Description Prompt -->

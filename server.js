@@ -6,6 +6,7 @@ const { processImages, processImageWithPrompt, generateDescriptionJSON, generate
 const { testConnection, uploadFile, createProduct } = require('./modules/shopify');
 const { runSingle, runBatch, getJob } = require('./modules/pipeline');
 const { productTemplate } = require('./templates/productDescriptionTemplate');
+const { productTemplateB } = require('./templates/productDescriptionTemplateB');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -114,13 +115,13 @@ app.post('/api/scrape', async (req, res) => {
  */
 app.post('/api/process-images', async (req, res) => {
     try {
-        const { imagePaths, customApiKey, brand } = req.body;
+        const { imagePaths, customApiKey, brand, ourBrand } = req.body;
         if (!imagePaths || !imagePaths.length) {
             return res.status(400).json({ error: 'imagePaths array is required' });
         }
 
-        console.log(`Processing ${imagePaths.length} images... (brand: ${brand || 'auto-detect'})`);
-        const results = await processImages(imagePaths, customApiKey, brand);
+        console.log(`Processing ${imagePaths.length} images... (brand: ${brand || 'auto-detect'}, ourBrand: ${ourBrand || 'gigglo'})`);
+        const results = await processImages(imagePaths, customApiKey, brand, ourBrand);
         res.json({ success: true, results });
     } catch (error) {
         console.error('Image processing error:', error);
@@ -166,10 +167,11 @@ app.post('/api/generate-content', async (req, res) => {
             generateDescriptionJSON(productData, customApiKey),
         ]);
 
-        // Render JSON through the master HTML template
-        const descriptionHtml = productTemplate(descriptionJSON, imageUrls || []);
+        // Render JSON through both HTML templates
+        const descriptionHtmlA = productTemplate(descriptionJSON, imageUrls || []);
+        const descriptionHtmlB = productTemplateB(descriptionJSON, imageUrls || []);
 
-        res.json({ success: true, title, descriptionJSON, descriptionHtml });
+        res.json({ success: true, title, descriptionJSON, descriptionHtmlA, descriptionHtmlB });
     } catch (error) {
         console.error('Content generation error:', error);
         res.status(500).json({ success: false, error: error.message });
@@ -192,10 +194,11 @@ app.post('/api/regenerate-description', async (req, res) => {
         console.log(`Regenerating description with custom prompt: "${customPrompt.substring(0, 60)}..."`);
         const descriptionJSON = await generateDescriptionJSONWithPrompt(productData, customPrompt, existingJSON, customApiKey);
 
-        // Render through template
-        const descriptionHtml = productTemplate(descriptionJSON, imageUrls || []);
+        // Render through both templates
+        const descriptionHtmlA = productTemplate(descriptionJSON, imageUrls || []);
+        const descriptionHtmlB = productTemplateB(descriptionJSON, imageUrls || []);
 
-        res.json({ success: true, descriptionJSON, descriptionHtml });
+        res.json({ success: true, descriptionJSON, descriptionHtmlA, descriptionHtmlB });
     } catch (error) {
         console.error('Custom description generation error:', error);
         res.status(500).json({ success: false, error: error.message });
