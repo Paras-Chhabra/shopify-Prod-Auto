@@ -557,7 +557,7 @@ async function handleCreateProduct() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 title,
-                bodyHtml: (state.selectedTemplate === 'B' ? state.descriptionHtmlB : state.descriptionHtmlA) || '',
+                bodyHtml: (document.querySelector('input[name="templateChoice"]:checked')?.value === 'B' ? state.descriptionHtmlB : state.descriptionHtmlA) || '',
                 descriptionJSON: state.descriptionJSON || null,
                 imagePaths,
                 price: els.finalPrice.value || '0.00',
@@ -893,6 +893,10 @@ function switchTemplateTab(tab) {
 
 // Make switchTemplateTab accessible globally (called from inline onclick)
 window.switchTemplateTab = switchTemplateTab;
+
+// Also listen for radio button clicks so they sync the tab preview
+if (els.templateChoiceA) els.templateChoiceA.addEventListener('change', () => switchTemplateTab('A'));
+if (els.templateChoiceB) els.templateChoiceB.addEventListener('change', () => switchTemplateTab('B'));
 
 // ============================================================
 // UI Helpers
