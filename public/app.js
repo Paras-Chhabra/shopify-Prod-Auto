@@ -179,6 +179,7 @@ async function loadDashboard() {
             `;
             tbody.appendChild(tr);
         });
+        grid.innerHTML = '';
         grid.appendChild(table);
     } catch (err) {
         grid.innerHTML = `<p class="empty-state">Failed to load products: ${err.message}</p>`;
