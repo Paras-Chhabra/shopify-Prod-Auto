@@ -37,8 +37,6 @@ const els = {
     finalTitle: $('#finalTitle'),
     descriptionPreview: $('#descriptionPreview'),
     ourBrandName: $('#ourBrandName'),
-    customDescPrompt: $('#customDescPrompt'),
-    customDescBtn: $('#customDescBtn'),
     finalPrice: $('#finalPrice'),
     finalCurrency: $('#finalCurrency'),
     productType: $('#productType'),
@@ -73,7 +71,6 @@ async function init() {
     els.regenerateBtn.addEventListener('click', handleProcessImages);
     els.generateContentBtn.addEventListener('click', handleGenerateContent);
     els.createProductBtn.addEventListener('click', handleCreateProduct);
-    els.customDescBtn.addEventListener('click', handleCustomDescRegenerate);
 
     if (els.logoutBtn) {
         els.logoutBtn.addEventListener('click', async () => {
@@ -227,6 +224,12 @@ function renderPreview(data) {
     els.productCurrency.value = data.currency || 'INR';
     els.productBrand.value = data.brand || 'Unknown';
 
+    // Show upload section immediately — AI processing is optional
+    els.uploadSection.classList.remove('hidden');
+    els.finalTitle.value = data.title || '';
+    els.finalPrice.value = data.price || '';
+    els.finalCurrency.value = data.currency || 'INR';
+
     els.originalImages.innerHTML = '';
     if (data.localImages && data.localImages.length > 0) {
         data.localImages.forEach((img, index) => {
@@ -289,7 +292,7 @@ async function handleProcessImages() {
         const imagePaths = state.scrapedData.localImages.map(img => img.localPath);
         const customApiKey = els.customApiKey.value.trim();
         const brand = els.productBrand.value.trim();
-        const ourBrand = els.ourBrandName.value.trim() || 'gigglo';
+        const ourBrand = els.ourBrandName.value.trim(); // empty = no brand overlay
 
         const res = await apiFetch('/api/process-images', {
             method: 'POST',
@@ -303,10 +306,7 @@ async function handleProcessImages() {
         state.processedImages = data.results;
         renderProcessedImages(data.results);
 
-        els.uploadSection.classList.remove('hidden');
-        els.finalTitle.value = state.scrapedData.title || '';
-        els.finalPrice.value = state.scrapedData.price || '';
-        els.finalCurrency.value = state.scrapedData.currency || 'INR';
+        // Keep current form values — user may have already edited them
 
         showToast(`${data.results.length} images processed!`, 'success');
     } catch (err) {
@@ -430,46 +430,7 @@ async function handleGenerateContent() {
     }
 }
 
-async function handleCustomDescRegenerate() {
-    const customPrompt = els.customDescPrompt.value.trim();
-    if (!customPrompt) { showToast('Please enter your description instructions', 'warning'); els.customDescPrompt.focus(); return; }
-    setButtonLoading(els.customDescBtn, true);
 
-    try {
-        const imageUrls = getProcessedImageUrls();
-        const customApiKey = els.customApiKey.value.trim();
-
-        const res = await apiFetch('/api/regenerate-description', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                productData: {
-                    title: els.finalTitle.value || state.scrapedData?.title,
-                    description: els.productDescription.value || state.scrapedData?.description,
-                    brand: state.scrapedData?.brand,
-                    price: els.finalPrice.value || state.scrapedData?.price,
-                    currency: els.finalCurrency.value || state.scrapedData?.currency,
-                },
-                customPrompt,
-                imageUrls,
-                existingJSON: state.descriptionJSON,
-                customApiKey,
-            }),
-        });
-        if (!res) return;
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error);
-
-        state.descriptionJSON = data.descriptionJSON;
-        state.descriptionHtml = data.descriptionHtml;
-        updatePreviewIframe(els.descriptionPreview, data.descriptionHtml);
-        showToast('Description regenerated!', 'success');
-    } catch (err) {
-        showToast(`Description regeneration failed: ${err.message}`, 'error');
-    } finally {
-        setButtonLoading(els.customDescBtn, false);
-    }
-}
 
 // ============================================================
 // Create Product

@@ -118,9 +118,10 @@
                     </div>
                     <div class="form-group">
                         <label>🏷️ Our Brand Name <span
-                                style="font-weight:400;color:var(--text-muted);font-size:12px;">(replaces removed brand
-                                on images, default: gigglo)</span></label>
-                        <input type="text" id="ourBrandName" class="form-input" placeholder="gigglo">
+                                style="font-weight:400;color:var(--text-muted);font-size:12px;">(optional — replaces
+                                removed brand on images)</span></label>
+                        <input type="text" id="ourBrandName" class="form-input"
+                            placeholder="Leave empty to skip brand overlay">
                     </div>
                 </div>
             </div>
@@ -173,16 +174,7 @@
                         <iframe id="descriptionPreview" class="preview-iframe" sandbox="allow-same-origin"></iframe>
                     </div>
 
-                    <div class="custom-prompt-section" style="margin-top: 12px;">
-                        <label for="customDescPrompt">✏️ Want a different description? Give your instructions:</label>
-                        <textarea id="customDescPrompt" class="form-input form-textarea" rows="2"
-                            placeholder="e.g. Make it more formal. Add a warranty section."></textarea>
-                        <button class="btn btn-secondary" id="customDescBtn" style="margin-top: 8px;">
-                            <span class="btn-icon">✍️</span>
-                            <span class="btn-text">Regenerate Description</span>
-                            <span class="btn-loader hidden"></span>
-                        </button>
-                    </div>
+
                 </div>
 
                 <div class="form-row">
