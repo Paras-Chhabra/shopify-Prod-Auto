@@ -9,6 +9,71 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Dashboard Table Styles */
+        .dashboard-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            color: #fff;
+        }
+
+        .dashboard-table th {
+            text-align: left;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.03);
+            color: rgba(255, 255, 255, 0.5);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 11px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .dashboard-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            vertical-align: middle;
+        }
+
+        .dashboard-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .dashboard-table tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .product-id-cell {
+            font-family: monospace;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 11px;
+        }
+
+        .orders-count {
+            font-weight: 700;
+            color: #a78bfa;
+            font-size: 15px;
+        }
+
+        .shopify-link {
+            color: #7c3aed;
+            text-decoration: none;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .shopify-link:hover {
+            text-decoration: underline;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+    </style>
 </head>
 
 <body>
@@ -43,8 +108,7 @@
                 <h2>📦 My Products</h2>
                 <p class="card-subtitle">Products you've added — with order counts from the last 15 days</p>
             </div>
-            <div id="dashboardGrid"
-                style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-top:16px;">
+            <div id="dashboardTableContainer" class="table-container" style="margin-top:16px;">
                 <p class="empty-state" id="dashboardEmpty">Loading your products...</p>
             </div>
         </section>

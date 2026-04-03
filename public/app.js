@@ -51,7 +51,7 @@ const els = {
     resultsSection: $('#resultsSection'),
     resultContent: $('#resultContent'),
     toastContainer: $('#toastContainer'),
-    dashboardGrid: $('#dashboardGrid'),
+    dashboardTableContainer: $('#dashboardTableContainer'),
 };
 
 // ============================================================
@@ -130,7 +130,7 @@ async function apiFetch(url, options = {}) {
 // ============================================================
 
 async function loadDashboard() {
-    const grid = els.dashboardGrid;
+    const grid = $('#dashboardTableContainer');
     grid.innerHTML = '<p class="empty-state" id="dashboardEmpty">Loading your products...</p>';
 
     try {
@@ -145,40 +145,41 @@ async function loadDashboard() {
             return;
         }
 
-        grid.innerHTML = '';
+        const table = document.createElement('table');
+        table.className = 'dashboard-table';
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th style="width: 50%;">Product Title</th>
+                    <th style="width: 25%;">Product ID</th>
+                    <th style="width: 15%;">Orders</th>
+                    <th style="width: 10%;">Action</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        `;
+        const tbody = table.querySelector('tbody');
+
         data.products.forEach(p => {
-            const card = document.createElement('div');
-            card.style.cssText = `
-                background: rgba(255,255,255,0.04);
-                border: 1px solid rgba(255,255,255,0.08);
-                border-radius: 12px;
-                padding: 14px 18px;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 12px;
-                transition: border-color 0.2s;
-            `;
-            card.addEventListener('mouseenter', () => card.style.borderColor = 'rgba(124,58,237,0.4)');
-            card.addEventListener('mouseleave', () => card.style.borderColor = 'rgba(255,255,255,0.08)');
+            const tr = document.createElement('tr');
 
             const orderDisplay = p.totalOrders === null
-                ? `<span style="font-size:12px;color:rgba(255,255,255,0.3);font-style:italic;">unavailable</span>`
-                : `<span style="font-size:14px;font-weight:700;color:#a78bfa;">${p.totalOrders}</span>`;
+                ? `<span style="color:rgba(255,255,255,0.3);font-style:italic;">unavailable</span>`
+                : `<span class="orders-count">${p.totalOrders}</span>`;
 
-            card.innerHTML = `
-                <div style="flex:1;min-width:0;">
-                    <div style="font-size:13px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.title}</div>
-                </div>
-                <div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
-                    <span style="font-size:11px;color:rgba(255,255,255,0.4);">Orders:</span>
-                    ${orderDisplay}
-                </div>
-                <a href="${p.adminUrl}" target="_blank"
-                    style="font-size:12px;color:#7c3aed;text-decoration:none;font-weight:600;white-space:nowrap;">Open in Shopify →</a>
+            tr.innerHTML = `
+                <td>
+                    <div style="font-weight:600; color:#fff; line-height:1.4;">${p.title}</div>
+                </td>
+                <td class="product-id-cell">${p.shopifyProductId}</td>
+                <td>${orderDisplay}</td>
+                <td>
+                    <a href="${p.adminUrl}" target="_blank" class="shopify-link">Open →</a>
+                </td>
             `;
-            grid.appendChild(card);
+            tbody.appendChild(tr);
         });
+        grid.appendChild(table);
     } catch (err) {
         grid.innerHTML = `<p class="empty-state">Failed to load products: ${err.message}</p>`;
     }
