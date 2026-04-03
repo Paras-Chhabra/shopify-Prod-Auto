@@ -151,32 +151,31 @@ async function loadDashboard() {
             card.style.cssText = `
                 background: rgba(255,255,255,0.04);
                 border: 1px solid rgba(255,255,255,0.08);
-                border-radius: 14px;
-                padding: 16px;
+                border-radius: 12px;
+                padding: 14px 18px;
                 display: flex;
-                flex-direction: column;
-                gap: 10px;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
                 transition: border-color 0.2s;
             `;
             card.addEventListener('mouseenter', () => card.style.borderColor = 'rgba(124,58,237,0.4)');
             card.addEventListener('mouseleave', () => card.style.borderColor = 'rgba(255,255,255,0.08)');
 
-            const orderBadge = p.totalOrders === null
-                ? `<span style="font-size:11px;color:rgba(255,255,255,0.3);font-style:italic;">Order data unavailable</span>`
-                : `<span style="font-size:13px;font-weight:700;color:#a78bfa;">${p.totalOrders} order${p.totalOrders !== 1 ? 's' : ''}</span>`;
-
-            const statusColor = p.status === 'active' ? '#34d399' : 'rgba(255,255,255,0.3)';
+            const orderDisplay = p.totalOrders === null
+                ? `<span style="font-size:12px;color:rgba(255,255,255,0.3);font-style:italic;">unavailable</span>`
+                : `<span style="font-size:14px;font-weight:700;color:#a78bfa;">${p.totalOrders}</span>`;
 
             card.innerHTML = `
-                ${p.imageUrl ? `<img src="${p.imageUrl}" alt="${p.title}" style="width:100%;height:130px;object-fit:cover;border-radius:8px;"/>` : ''}
-                <div style="font-size:13px;font-weight:600;color:#fff;line-height:1.3;">${p.title}</div>
-                <div style="display:flex;align-items:center;justify-content:space-between;">
-                    ${orderBadge}
-                    <span style="font-size:11px;font-weight:500;color:${statusColor};text-transform:capitalize;">${p.status}</span>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:13px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.title}</div>
                 </div>
-                <a href="${p.adminUrl}" target="_blank" style="font-size:12px;color:#7c3aed;text-decoration:none;font-weight:500;margin-top:auto;">
-                    Open in Shopify →
-                </a>
+                <div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
+                    <span style="font-size:11px;color:rgba(255,255,255,0.4);">Orders:</span>
+                    ${orderDisplay}
+                </div>
+                <a href="${p.adminUrl}" target="_blank"
+                    style="font-size:12px;color:#7c3aed;text-decoration:none;font-weight:600;white-space:nowrap;">Open in Shopify →</a>
             `;
             grid.appendChild(card);
         });
@@ -397,17 +396,19 @@ async function handleGenerateContent() {
     try {
         const imageUrls = getProcessedImageUrls();
         const customApiKey = els.customApiKey.value.trim();
+        // Use whatever title the user has typed, falling back to scraped title
+        const currentTitle = els.finalTitle.value.trim() || state.scrapedData.title;
 
         const res = await apiFetch('/api/generate-content', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 productData: {
-                    title: state.scrapedData.title,
+                    title: currentTitle,
                     description: state.scrapedData.description,
                     brand: state.scrapedData.brand,
-                    price: state.scrapedData.price,
-                    currency: state.scrapedData.currency,
+                    price: els.finalPrice.value || state.scrapedData.price,
+                    currency: els.finalCurrency.value || state.scrapedData.currency,
                 },
                 imageUrls,
                 customApiKey,
@@ -420,9 +421,12 @@ async function handleGenerateContent() {
         state.generatedTitle = data.title;
         state.descriptionJSON = data.descriptionJSON;
         state.descriptionHtml = data.descriptionHtml;
-        els.finalTitle.value = data.title;
+        // Only update title field if user hasn't edited it yet
+        if (!els.finalTitle.value.trim() || els.finalTitle.value.trim() === state.scrapedData.title) {
+            els.finalTitle.value = data.title;
+        }
         updatePreviewIframe(els.descriptionPreview, data.descriptionHtml);
-        showToast('Title and description generated!', 'success');
+        showToast('Description generated!', 'success');
     } catch (err) {
         showToast(`Content generation failed: ${err.message}`, 'error');
     } finally {
