@@ -501,9 +501,17 @@ async function handleCreateProduct() {
 // ============================================================
 
 function getProcessedImageUrls() {
+    // Use AI-processed images if available
     if (state.processedImages.length > 0) {
         return state.processedImages.map(img => {
             const relativePath = img.processedPath.split('/temp/')[1] || img.processedPath;
+            return `/temp/${relativePath}`;
+        });
+    }
+    // Fall back to original scraped images (when AI processing was skipped)
+    if (state.scrapedData?.localImages?.length > 0) {
+        return state.scrapedData.localImages.map(img => {
+            const relativePath = img.localPath.split('/temp/')[1] || img.localPath;
             return `/temp/${relativePath}`;
         });
     }
