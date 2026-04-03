@@ -3,16 +3,11 @@
 // ============================================================
 
 const state = {
-    mode: 'single', // 'single' or 'batch'
     scrapedData: null,
     processedImages: [],
     generatedTitle: '',
     descriptionJSON: null,
-    descriptionHtmlA: '',
-    descriptionHtmlB: '',
-    selectedTemplate: 'A',
-    currentJobId: null,
-    history: JSON.parse(localStorage.getItem('productHistory') || '[]'),
+    descriptionHtml: '',
 };
 
 // ---- DOM References ----
@@ -21,10 +16,8 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 const els = {
     connectionStatus: $('#connectionStatus'),
-    singleModeBtn: $('#singleModeBtn'),
-    batchModeBtn: $('#batchModeBtn'),
+    userGreeting: $('#userGreeting'),
     urlInput: $('#urlInput'),
-    urlSubtitle: $('#urlSubtitle'),
     fetchBtn: $('#fetchBtn'),
     customApiKey: $('#customApiKey'),
     logoutBtn: $('#logoutBtn'),
@@ -42,12 +35,7 @@ const els = {
     processedImagesGrid: $('#processedImagesGrid'),
     uploadSection: $('#uploadSection'),
     finalTitle: $('#finalTitle'),
-    descriptionPreviewA: $('#descriptionPreviewA'),
-    descriptionPreviewB: $('#descriptionPreviewB'),
-    tabA: $('#tabA'),
-    tabB: $('#tabB'),
-    templateChoiceA: $('#templateChoiceA'),
-    templateChoiceB: $('#templateChoiceB'),
+    descriptionPreview: $('#descriptionPreview'),
     ourBrandName: $('#ourBrandName'),
     customDescPrompt: $('#customDescPrompt'),
     customDescBtn: $('#customDescBtn'),
@@ -59,18 +47,13 @@ const els = {
     productStatus: $('#productStatus'),
     productInventory: $('#productInventory'),
     createProductBtn: $('#createProductBtn'),
-    batchSection: $('#batchSection'),
-    batchSubtitle: $('#batchSubtitle'),
-    batchProgressFill: $('#batchProgressFill'),
-    batchProgressText: $('#batchProgressText'),
-    batchList: $('#batchList'),
     progressSection: $('#progressSection'),
     progressFill: $('#progressFill'),
     progressStep: $('#progressStep'),
     resultsSection: $('#resultsSection'),
     resultContent: $('#resultContent'),
-    historyList: $('#historyList'),
     toastContainer: $('#toastContainer'),
+    dashboardGrid: $('#dashboardGrid'),
 };
 
 // ============================================================
@@ -78,137 +61,157 @@ const els = {
 // ============================================================
 
 async function init() {
-    // Check connection
-    try {
-        const res = await fetch('/api/test-connection');
-        const data = await res.json();
+    // Load user greeting + connection status in parallel
+    Promise.all([loadUserInfo(), checkConnection()]);
 
-        const statusDot = els.connectionStatus.querySelector('.status-dot');
-        const statusText = els.connectionStatus.querySelector('.status-text');
-
-        if (data.success) {
-            statusDot.classList.add('connected');
-            statusText.textContent = `Connected · ${data.shopName}`;
-        } else {
-            statusDot.classList.add('error');
-            statusText.textContent = 'Connection failed';
-        }
-    } catch {
-        const statusDot = els.connectionStatus.querySelector('.status-dot');
-        const statusText = els.connectionStatus.querySelector('.status-text');
-        statusDot.classList.add('error');
-        statusText.textContent = 'Connection error';
-    }
+    // Load dashboard
+    loadDashboard();
 
     // Event listeners
-    els.singleModeBtn.addEventListener('click', () => setMode('single'));
-    els.batchModeBtn.addEventListener('click', () => setMode('batch'));
     els.fetchBtn.addEventListener('click', handleFetch);
-
-    // Process images
     els.processImagesBtn.addEventListener('click', handleProcessImages);
     els.regenerateBtn.addEventListener('click', handleProcessImages);
-
-    // Generate content
     els.generateContentBtn.addEventListener('click', handleGenerateContent);
-
-    // Create product
     els.createProductBtn.addEventListener('click', handleCreateProduct);
-
-    // Custom description regeneration
     els.customDescBtn.addEventListener('click', handleCustomDescRegenerate);
 
-    // Logout listener
     if (els.logoutBtn) {
         els.logoutBtn.addEventListener('click', async () => {
-            try {
-                await fetch('/auth/logout', { method: 'POST' });
-                window.location.href = '/login.html';
-            } catch (err) {
-                console.error('Logout error:', err);
-                window.location.href = '/login.html';
-            }
+            try { await fetch('/auth/logout', { method: 'POST' }); } catch (_) { }
+            window.location.href = '/login.html';
         });
     }
+}
 
-    // Auto-resize textarea
-    els.urlInput.addEventListener('input', () => {
-        if (state.mode === 'batch') {
-            els.urlInput.style.height = 'auto';
-            els.urlInput.style.height = els.urlInput.scrollHeight + 'px';
+async function loadUserInfo() {
+    try {
+        const res = await apiFetch('/api/me');
+        if (!res) return;
+        const data = await res.json();
+        if (data.name && els.userGreeting) {
+            els.userGreeting.textContent = `👋 ${data.name}`;
         }
-    });
-
-    // Render history
-    renderHistory();
+    } catch (_) { }
 }
 
-// ============================================================
-// Mode Toggle
-// ============================================================
-
-function setMode(mode) {
-    state.mode = mode;
-
-    if (mode === 'single') {
-        els.singleModeBtn.classList.add('active');
-        els.batchModeBtn.classList.remove('active');
-        els.urlInput.rows = 1;
-        els.urlInput.placeholder = 'https://example.com/product/awesome-item';
-        els.urlSubtitle.textContent = 'Paste a reference product URL to get started';
-    } else {
-        els.batchModeBtn.classList.add('active');
-        els.singleModeBtn.classList.remove('active');
-        els.urlInput.rows = 5;
-        els.urlInput.placeholder = 'Paste one URL per line:\nhttps://example.com/product/1\nhttps://example.com/product/2\nhttps://example.com/product/3';
-        els.urlSubtitle.textContent = 'Paste multiple URLs (one per line) for batch processing';
+async function checkConnection() {
+    try {
+        const res = await apiFetch('/api/test-connection');
+        if (!res) return;
+        const data = await res.json();
+        const dot = els.connectionStatus.querySelector('.status-dot');
+        const txt = els.connectionStatus.querySelector('.status-text');
+        if (data.success) {
+            dot.classList.add('connected');
+            txt.textContent = `Connected · ${data.shopName}`;
+        } else {
+            dot.classList.add('error');
+            txt.textContent = 'Connection failed';
+        }
+    } catch {
+        const dot = els.connectionStatus.querySelector('.status-dot');
+        const txt = els.connectionStatus.querySelector('.status-text');
+        dot.classList.add('error');
+        txt.textContent = 'Connection error';
     }
 }
 
-/**
- * Handle 401 Unauthorized globally for fetch calls
- */
-function handleAuthError(res) {
-    if (res.status === 401 || res.status === 403) {
+// ============================================================
+// Global fetch wrapper — handle 401 globally
+// ============================================================
+async function apiFetch(url, options = {}) {
+    const res = await fetch(url, options);
+    if (res.status === 401) {
         window.location.href = '/login.html';
-        return true;
+        return null;
     }
-    return false;
+    return res;
 }
 
 // ============================================================
-// Single Mode — Fetch
+// Dashboard — My Products
+// ============================================================
+
+async function loadDashboard() {
+    const grid = els.dashboardGrid;
+    grid.innerHTML = '<p class="empty-state" id="dashboardEmpty">Loading your products...</p>';
+
+    try {
+        const res = await apiFetch('/api/my-products-with-orders');
+        if (!res) return;
+        const data = await res.json();
+
+        if (!data.success) throw new Error(data.error);
+
+        if (data.products.length === 0) {
+            grid.innerHTML = '<p class="empty-state">No products yet. Add your first product below! 👇</p>';
+            return;
+        }
+
+        grid.innerHTML = '';
+        data.products.forEach(p => {
+            const card = document.createElement('div');
+            card.style.cssText = `
+                background: rgba(255,255,255,0.04);
+                border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 14px;
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                transition: border-color 0.2s;
+            `;
+            card.addEventListener('mouseenter', () => card.style.borderColor = 'rgba(124,58,237,0.4)');
+            card.addEventListener('mouseleave', () => card.style.borderColor = 'rgba(255,255,255,0.08)');
+
+            const orderBadge = p.totalOrders === null
+                ? `<span style="font-size:11px;color:rgba(255,255,255,0.3);font-style:italic;">Order data unavailable</span>`
+                : `<span style="font-size:13px;font-weight:700;color:#a78bfa;">${p.totalOrders} order${p.totalOrders !== 1 ? 's' : ''}</span>`;
+
+            const statusColor = p.status === 'active' ? '#34d399' : 'rgba(255,255,255,0.3)';
+
+            card.innerHTML = `
+                ${p.imageUrl ? `<img src="${p.imageUrl}" alt="${p.title}" style="width:100%;height:130px;object-fit:cover;border-radius:8px;"/>` : ''}
+                <div style="font-size:13px;font-weight:600;color:#fff;line-height:1.3;">${p.title}</div>
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    ${orderBadge}
+                    <span style="font-size:11px;font-weight:500;color:${statusColor};text-transform:capitalize;">${p.status}</span>
+                </div>
+                <a href="${p.adminUrl}" target="_blank" style="font-size:12px;color:#7c3aed;text-decoration:none;font-weight:500;margin-top:auto;">
+                    Open in Shopify →
+                </a>
+            `;
+            grid.appendChild(card);
+        });
+    } catch (err) {
+        grid.innerHTML = `<p class="empty-state">Failed to load products: ${err.message}</p>`;
+    }
+}
+
+// ============================================================
+// Fetch Product
 // ============================================================
 
 async function handleFetch() {
-    const input = els.urlInput.value.trim();
-    if (!input) {
-        showToast('Please enter a product URL', 'warning');
-        return;
-    }
-
-    if (state.mode === 'batch') {
-        return handleBatch(input);
-    }
+    const url = els.urlInput.value.trim();
+    if (!url) { showToast('Please enter a product URL', 'warning'); return; }
 
     setButtonLoading(els.fetchBtn, true);
     state.processedImages = [];
 
     try {
-        const res = await fetch('/api/scrape', {
+        const res = await apiFetch('/api/scrape', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: input }),
+            body: JSON.stringify({ url }),
         });
-
-        if (handleAuthError(res)) return;
-
+        if (!res) return;
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
 
         state.scrapedData = data.data;
         renderPreview(data.data);
-        showToast('Product data fetched successfully!', 'success');
+        showToast('Product data fetched!', 'success');
     } catch (err) {
         showToast(`Scraping failed: ${err.message}`, 'error');
     } finally {
@@ -217,17 +220,13 @@ async function handleFetch() {
 }
 
 function renderPreview(data) {
-    // Show preview section
     els.previewSection.classList.remove('hidden');
-
-    // Fill in fields
     els.productTitle.value = data.title || '';
     els.productDescription.value = data.description || '';
     els.productPrice.value = data.price || '';
     els.productCurrency.value = data.currency || 'INR';
     els.productBrand.value = data.brand || 'Unknown';
 
-    // Render images with delete buttons
     els.originalImages.innerHTML = '';
     if (data.localImages && data.localImages.length > 0) {
         data.localImages.forEach((img, index) => {
@@ -246,9 +245,7 @@ function renderPreview(data) {
             deleteBtn.title = 'Remove this image';
             deleteBtn.onclick = () => {
                 data.localImages.splice(index, 1);
-                if (data.images && data.images.length > index) {
-                    data.images.splice(index, 1);
-                }
+                if (data.images && data.images.length > index) data.images.splice(index, 1);
                 renderPreview(data);
             };
 
@@ -260,30 +257,18 @@ function renderPreview(data) {
         data.images.forEach((url, index) => {
             const wrapper = document.createElement('div');
             wrapper.className = 'image-wrapper';
-
             const imgEl = document.createElement('img');
-            imgEl.src = url;
-            imgEl.alt = 'Product image';
-            imgEl.loading = 'lazy';
-
+            imgEl.src = url; imgEl.alt = 'Product image'; imgEl.loading = 'lazy';
             const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'delete-btn';
-            deleteBtn.innerHTML = '✕';
-            deleteBtn.title = 'Remove this image';
-            deleteBtn.onclick = () => {
-                data.images.splice(index, 1);
-                renderPreview(data);
-            };
-
-            wrapper.appendChild(imgEl);
-            wrapper.appendChild(deleteBtn);
+            deleteBtn.className = 'delete-btn'; deleteBtn.innerHTML = '✕';
+            deleteBtn.onclick = () => { data.images.splice(index, 1); renderPreview(data); };
+            wrapper.appendChild(imgEl); wrapper.appendChild(deleteBtn);
             els.originalImages.appendChild(wrapper);
         });
     } else {
         els.originalImages.innerHTML = '<p class="empty-state">No images found</p>';
     }
 
-    // Scroll to preview
     els.previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -301,26 +286,23 @@ async function handleProcessImages() {
     showProgress('Processing images with AI...', 0);
 
     try {
-        const imagePaths = state.scrapedData.localImages.map((img) => img.localPath);
+        const imagePaths = state.scrapedData.localImages.map(img => img.localPath);
         const customApiKey = els.customApiKey.value.trim();
         const brand = els.productBrand.value.trim();
         const ourBrand = els.ourBrandName.value.trim() || 'gigglo';
 
-        const res = await fetch('/api/process-images', {
+        const res = await apiFetch('/api/process-images', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ imagePaths, customApiKey, brand, ourBrand }),
         });
-
-        if (handleAuthError(res)) return;
-
+        if (!res) return;
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
 
         state.processedImages = data.results;
         renderProcessedImages(data.results);
 
-        // Show upload section
         els.uploadSection.classList.remove('hidden');
         els.finalTitle.value = state.scrapedData.title || '';
         els.finalPrice.value = state.scrapedData.price || '';
@@ -335,9 +317,6 @@ async function handleProcessImages() {
     }
 }
 
-/**
- * Render processed images — each with its own "Regenerate with Custom Prompt" button
- */
 function renderProcessedImages(results) {
     els.comparisonSection.classList.remove('hidden');
     els.processedImagesGrid.innerHTML = '';
@@ -346,7 +325,6 @@ function renderProcessedImages(results) {
         const card = document.createElement('div');
         card.className = 'processed-image-card';
         card.id = `processed-card-${index}`;
-
         const relativePath = result.processedPath.split('/temp/')[1] || result.processedPath;
         const imgSrc = `/temp/${relativePath}`;
 
@@ -365,59 +343,41 @@ function renderProcessedImages(results) {
                 </button>
             </div>
         `;
-
         els.processedImagesGrid.appendChild(card);
     });
 }
 
-/**
- * Remove a processed image
- */
 function removeProcessedImage(index) {
     state.processedImages.splice(index, 1);
     renderProcessedImages(state.processedImages);
 }
 
-/**
- * Regenerate a single image with a custom prompt
- */
 async function handlePerImageRegenerate(index) {
     const promptInput = document.getElementById(`prompt-${index}`);
     const customPrompt = promptInput.value.trim();
-    if (!customPrompt) {
-        showToast('Please enter a prompt for this image', 'warning');
-        promptInput.focus();
-        return;
-    }
+    if (!customPrompt) { showToast('Please enter a prompt for this image', 'warning'); promptInput.focus(); return; }
 
     const card = document.getElementById(`processed-card-${index}`);
     const btn = card.querySelector('.btn');
     setButtonLoading(btn, true);
 
     try {
-        // Use the current processed image path for regeneration
         const imagePath = state.processedImages[index].processedPath;
         const customApiKey = els.customApiKey.value.trim();
 
-        const res = await fetch('/api/process-image-custom', {
+        const res = await apiFetch('/api/process-image-custom', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ imagePath, customPrompt, customApiKey }),
         });
-
-        if (handleAuthError(res)) return;
-
+        if (!res) return;
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
 
-        // Update the specific image in state
         state.processedImages[index] = data.result;
-
-        // Update just that image in the DOM
         const img = card.querySelector('img');
         const newRelativePath = data.result.processedPath.split('/temp/')[1] || data.result.processedPath;
         img.src = `/temp/${newRelativePath}?t=${Date.now()}`;
-
         showToast(`Image ${index + 1} regenerated!`, 'success');
     } catch (err) {
         showToast(`Regeneration failed: ${err.message}`, 'error');
@@ -427,23 +387,18 @@ async function handlePerImageRegenerate(index) {
 }
 
 // ============================================================
-// Generate Title & Description
+// Generate Content
 // ============================================================
 
 async function handleGenerateContent() {
-    if (!state.scrapedData) {
-        showToast('Please fetch a product first', 'warning');
-        return;
-    }
-
+    if (!state.scrapedData) { showToast('Please fetch a product first', 'warning'); return; }
     setButtonLoading(els.generateContentBtn, true);
 
     try {
-        // Collect image URLs for description template
         const imageUrls = getProcessedImageUrls();
         const customApiKey = els.customApiKey.value.trim();
 
-        const res = await fetch('/api/generate-content', {
+        const res = await apiFetch('/api/generate-content', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -455,24 +410,18 @@ async function handleGenerateContent() {
                     currency: state.scrapedData.currency,
                 },
                 imageUrls,
-                customApiKey
+                customApiKey,
             }),
         });
-
-        if (handleAuthError(res)) return;
-
+        if (!res) return;
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
 
         state.generatedTitle = data.title;
         state.descriptionJSON = data.descriptionJSON;
-        state.descriptionHtmlA = data.descriptionHtmlA;
-        state.descriptionHtmlB = data.descriptionHtmlB;
-
+        state.descriptionHtml = data.descriptionHtml;
         els.finalTitle.value = data.title;
-        updatePreviewIframe(els.descriptionPreviewA, data.descriptionHtmlA);
-        updatePreviewIframe(els.descriptionPreviewB, data.descriptionHtmlB);
-
+        updatePreviewIframe(els.descriptionPreview, data.descriptionHtml);
         showToast('Title and description generated!', 'success');
     } catch (err) {
         showToast(`Content generation failed: ${err.message}`, 'error');
@@ -483,47 +432,38 @@ async function handleGenerateContent() {
 
 async function handleCustomDescRegenerate() {
     const customPrompt = els.customDescPrompt.value.trim();
-    if (!customPrompt) {
-        showToast('Please enter your description instructions', 'warning');
-        els.customDescPrompt.focus();
-        return;
-    }
-
+    if (!customPrompt) { showToast('Please enter your description instructions', 'warning'); els.customDescPrompt.focus(); return; }
     setButtonLoading(els.customDescBtn, true);
 
     try {
         const imageUrls = getProcessedImageUrls();
         const customApiKey = els.customApiKey.value.trim();
 
-        const res = await fetch('/api/regenerate-description', {
+        const res = await apiFetch('/api/regenerate-description', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 productData: {
-                    title: els.finalTitle.value || els.productTitle.value || state.scrapedData?.title,
-                    description: state.descriptionHtml || els.productDescription.value || state.scrapedData?.description,
+                    title: els.finalTitle.value || state.scrapedData?.title,
+                    description: els.productDescription.value || state.scrapedData?.description,
                     brand: state.scrapedData?.brand,
-                    price: els.finalPrice.value || els.productPrice.value || state.scrapedData?.price,
-                    currency: els.finalCurrency.value || els.productCurrency.value || state.scrapedData?.currency,
+                    price: els.finalPrice.value || state.scrapedData?.price,
+                    currency: els.finalCurrency.value || state.scrapedData?.currency,
                 },
                 customPrompt,
                 imageUrls,
                 existingJSON: state.descriptionJSON,
-                customApiKey
+                customApiKey,
             }),
         });
-
-        if (handleAuthError(res)) return;
-
+        if (!res) return;
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
 
         state.descriptionJSON = data.descriptionJSON;
-        state.descriptionHtmlA = data.descriptionHtmlA;
-        state.descriptionHtmlB = data.descriptionHtmlB;
-        updatePreviewIframe(els.descriptionPreviewA, data.descriptionHtmlA);
-        updatePreviewIframe(els.descriptionPreviewB, data.descriptionHtmlB);
-        showToast('Description regenerated with your instructions!', 'success');
+        state.descriptionHtml = data.descriptionHtml;
+        updatePreviewIframe(els.descriptionPreview, data.descriptionHtml);
+        showToast('Description regenerated!', 'success');
     } catch (err) {
         showToast(`Description regeneration failed: ${err.message}`, 'error');
     } finally {
@@ -532,32 +472,29 @@ async function handleCustomDescRegenerate() {
 }
 
 // ============================================================
-// Create Product on Shopify
+// Create Product
 // ============================================================
 
 async function handleCreateProduct() {
     const title = els.finalTitle.value.trim();
-    if (!title) {
-        showToast('Please set a product title', 'warning');
-        return;
-    }
+    if (!title) { showToast('Please set a product title', 'warning'); return; }
 
     setButtonLoading(els.createProductBtn, true);
     showProgress('Creating product on Shopify...', 0);
 
     try {
         const imagePaths = state.processedImages.length > 0
-            ? state.processedImages.map((img) => img.processedPath)
-            : state.scrapedData?.localImages?.map((img) => img.localPath) || [];
+            ? state.processedImages.map(img => img.processedPath)
+            : state.scrapedData?.localImages?.map(img => img.localPath) || [];
 
         showProgress('Uploading images...', 20);
 
-        const res = await fetch('/api/create-product', {
+        const res = await apiFetch('/api/create-product', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 title,
-                bodyHtml: (document.querySelector('input[name="templateChoice"]:checked')?.value === 'B' ? state.descriptionHtmlB : state.descriptionHtmlA) || '',
+                bodyHtml: state.descriptionHtml || '',
                 descriptionJSON: state.descriptionJSON || null,
                 imagePaths,
                 price: els.finalPrice.value || '0.00',
@@ -568,15 +505,12 @@ async function handleCreateProduct() {
                 inventoryQuantity: parseInt(els.productInventory.value) || 100,
             }),
         });
-
-        if (handleAuthError(res)) return;
+        if (!res) return;
 
         showProgress('Finalizing...', 80);
-
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
 
-        // Show result
         els.resultsSection.classList.remove('hidden');
         els.resultContent.innerHTML = `
             <div class="result-item">
@@ -589,8 +523,10 @@ async function handleCreateProduct() {
             </div>
         `;
 
-        addToHistory(data.product);
         showToast('Product created on Shopify!', 'success');
+
+        // Refresh dashboard to show the new product
+        loadDashboard();
     } catch (err) {
         showToast(`Product creation failed: ${err.message}`, 'error');
     } finally {
@@ -600,321 +536,44 @@ async function handleCreateProduct() {
 }
 
 // ============================================================
-// Batch Mode
-// ============================================================
-
-async function handleBatch(input) {
-    const urls = input
-        .split('\n')
-        .map((u) => u.trim())
-        .filter((u) => u.startsWith('http'));
-    if (urls.length === 0) {
-        showToast('No valid URLs found', 'warning');
-        return;
-    }
-
-    setButtonLoading(els.fetchBtn, true);
-    els.batchSection.classList.remove('hidden');
-    els.batchSubtitle.textContent = `Processing ${urls.length} products...`;
-    els.batchProgressFill.style.width = '0%';
-    els.batchProgressText.textContent = '0%';
-
-    // Render batch items
-    els.batchList.innerHTML = urls
-        .map(
-            (url, idx) => `
-        <div class="batch-item" id="batch-item-${idx}">
-            <span class="batch-item-status">⏳</span>
-            <span class="batch-item-url">${url}</span>
-            <span class="batch-item-step">Pending</span>
-        </div>
-    `
-        )
-        .join('');
-
-    // Start batch
-    try {
-        const customApiKey = els.customApiKey.value.trim();
-
-        const payload = { urls };
-        if (customApiKey) payload.customApiKey = customApiKey;
-
-        const res = await fetch('/api/batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-
-        if (handleAuthError(res)) return;
-
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error);
-
-        state.currentJobId = data.jobId;
-        listenToProgress(data.jobId, urls);
-    } catch (err) {
-        showToast(`Batch failed: ${err.message}`, 'error');
-        setButtonLoading(els.fetchBtn, false);
-    }
-}
-
-function listenToProgress(jobId, urls) {
-    const eventSource = new EventSource(`/api/progress/${jobId}`);
-
-    eventSource.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-
-        if (data.type === 'progress') {
-            els.batchProgressFill.style.width = `${data.currentPercent}%`;
-            els.batchProgressText.textContent = `${data.currentPercent}%`;
-            els.batchSubtitle.textContent = `${data.currentStep} (${data.completedProducts}/${data.totalProducts})`;
-
-            // Update current item
-            for (let i = 0; i < data.completedProducts; i++) {
-                updateBatchItem(i, 'completed', 'Done ✓');
-            }
-        }
-
-        if (data.type === 'completed') {
-            eventSource.close();
-            setButtonLoading(els.fetchBtn, false);
-
-            els.batchProgressFill.style.width = '100%';
-            els.batchProgressText.textContent = '100%';
-            els.batchSubtitle.textContent = `Completed! ${data.totalSuccess || 0} succeeded, ${data.totalFailed || 0} failed`;
-
-            // Mark all items
-            if (data.results) {
-                data.results.forEach((result, idx) => {
-                    if (result.success) {
-                        updateBatchItem(idx, 'completed', 'Done ✓');
-                        addToHistory(result.shopifyProduct);
-                    } else {
-                        updateBatchItem(idx, 'failed', result.error || 'Failed');
-                    }
-                });
-            }
-
-            // Show results
-            renderBatchResults(data.results || [], data.errors || []);
-            showToast(`Batch complete! ${data.totalSuccess || 0} products created.`, 'success');
-        }
-    };
-
-    eventSource.onerror = () => {
-        eventSource.close();
-        pollJobStatus(jobId);
-    };
-}
-
-async function pollJobStatus(jobId) {
-    const poll = async () => {
-        try {
-            const res = await fetch(`/api/job/${jobId}`);
-            const data = await res.json();
-
-            els.batchProgressFill.style.width = `${data.currentPercent}%`;
-            els.batchProgressText.textContent = `${data.currentPercent}%`;
-
-            if (data.status === 'completed') {
-                setButtonLoading(els.fetchBtn, false);
-                els.batchSubtitle.textContent = `Completed!`;
-                renderBatchResults(data.results, data.errors);
-                showToast('Batch processing complete!', 'success');
-                return;
-            }
-
-            setTimeout(poll, 2000);
-        } catch (e) {
-            setTimeout(poll, 3000);
-        }
-    };
-    poll();
-}
-
-function updateBatchItem(idx, status, step) {
-    const item = document.getElementById(`batch-item-${idx}`);
-    if (!item) return;
-
-    item.className = `batch-item ${status}`;
-
-    const statusEl = item.querySelector('.batch-item-status');
-    const stepEl = item.querySelector('.batch-item-step');
-
-    if (status === 'active') {
-        statusEl.textContent = '⏳';
-    } else if (status === 'completed') {
-        statusEl.textContent = '✅';
-    } else if (status === 'failed') {
-        statusEl.textContent = '❌';
-    }
-
-    stepEl.textContent = step;
-}
-
-function renderBatchResults(results, errors) {
-    els.resultsSection.classList.remove('hidden');
-    els.resultContent.innerHTML = '';
-
-    results.forEach((result) => {
-        if (result.success) {
-            const item = document.createElement('div');
-            item.className = 'result-item';
-            item.innerHTML = `
-        <span>✅</span>
-        <div>
-          <strong>${result.shopifyProduct?.title || 'Product'}</strong><br>
-          <span style="color:var(--text-muted);">From: ${result.sourceUrl}</span>
-        </div>
-        <a href="${result.shopifyProduct?.adminUrl}" target="_blank">View →</a>
-      `;
-            els.resultContent.appendChild(item);
-        }
-    });
-
-    errors.forEach((err) => {
-        const item = document.createElement('div');
-        item.className = 'result-item error';
-        item.innerHTML = `
-      <span>❌</span>
-      <div>
-        <strong>Failed</strong><br>
-        <span style="color:var(--text-muted);">${err.sourceUrl}: ${err.error}</span>
-      </div>
-    `;
-        els.resultContent.appendChild(item);
-    });
-}
-
-// ============================================================
-// History
-// ============================================================
-
-function addToHistory(product) {
-    const entry = {
-        title: product.title,
-        adminUrl: product.adminUrl,
-        status: product.status,
-        createdAt: new Date().toISOString(),
-    };
-
-    state.history.unshift(entry);
-    if (state.history.length > 20) state.history = state.history.slice(0, 20);
-    localStorage.setItem('productHistory', JSON.stringify(state.history));
-    renderHistory();
-}
-
-function renderHistory() {
-    if (state.history.length === 0) {
-        els.historyList.innerHTML = '<p class="empty-state">No products added yet. Start by pasting a product URL above!</p>';
-        return;
-    }
-
-    els.historyList.innerHTML = state.history
-        .map(
-            (item) => `
-    <div class="history-item">
-      <div>
-        <div class="history-item-title">${item.title}</div>
-        <div class="history-item-meta">${new Date(item.createdAt).toLocaleString()} · ${item.status}</div>
-      </div>
-      <a href="${item.adminUrl}" target="_blank">Open in Shopify →</a>
-    </div>
-  `
-        )
-        .join('');
-}
-
-// ============================================================
-// Helper Functions
+// Helpers
 // ============================================================
 
 function getProcessedImageUrls() {
-    const urls = [];
     if (state.processedImages.length > 0) {
-        state.processedImages.forEach((img) => {
+        return state.processedImages.map(img => {
             const relativePath = img.processedPath.split('/temp/')[1] || img.processedPath;
-            urls.push(`/temp/${relativePath}`);
+            return `/temp/${relativePath}`;
         });
     }
-    return urls;
+    return [];
 }
 
 function updatePreviewIframe(iframe, html) {
     const doc = iframe.contentDocument || iframe.contentWindow.document;
     doc.open();
     doc.write(`<!DOCTYPE html>
-    <html>
-    <head>
+    <html><head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-        <style>
-            body { margin: 0; padding: 20px; font-family: 'Inter', system-ui, sans-serif; background: #fff; }
-            img { max-width: 100%; height: auto; }
-        </style>
-    </head>
-    <body>${html}</body>
-    </html>`);
+        <style>body { margin:0; padding:20px; font-family:'Inter',system-ui,sans-serif; background:#fff; } img { max-width:100%; height:auto; }</style>
+    </head><body>${html}</body></html>`);
     doc.close();
-
-    // Auto-resize iframe to fit content
     setTimeout(() => {
         try {
             const height = doc.documentElement.scrollHeight;
             iframe.style.height = Math.max(400, height + 40) + 'px';
-        } catch (e) { /* cross-origin guard */ }
+        } catch (_) { }
     }, 200);
 }
-
-/**
- * Switch between Template A and Template B tabs
- */
-function switchTemplateTab(tab) {
-    state.selectedTemplate = tab;
-    if (tab === 'A') {
-        els.descriptionPreviewA.style.display = '';
-        els.descriptionPreviewB.style.display = 'none';
-        els.tabA.style.background = 'var(--accent-primary)';
-        els.tabA.style.color = '#fff';
-        els.tabB.style.background = 'rgba(255,255,255,0.05)';
-        els.tabB.style.color = 'var(--text-muted)';
-        els.templateChoiceA.checked = true;
-    } else {
-        els.descriptionPreviewA.style.display = 'none';
-        els.descriptionPreviewB.style.display = '';
-        els.tabB.style.background = 'var(--accent-primary)';
-        els.tabB.style.color = '#fff';
-        els.tabA.style.background = 'rgba(255,255,255,0.05)';
-        els.tabA.style.color = 'var(--text-muted)';
-        els.templateChoiceB.checked = true;
-    }
-}
-
-// Make switchTemplateTab accessible globally (called from inline onclick)
-window.switchTemplateTab = switchTemplateTab;
-
-// Also listen for radio button clicks so they sync the tab preview
-if (els.templateChoiceA) els.templateChoiceA.addEventListener('change', () => switchTemplateTab('A'));
-if (els.templateChoiceB) els.templateChoiceB.addEventListener('change', () => switchTemplateTab('B'));
-
-// ============================================================
-// UI Helpers
-// ============================================================
 
 function setButtonLoading(btn, loading) {
     const textEl = btn.querySelector('.btn-text');
     const loaderEl = btn.querySelector('.btn-loader');
-
-    if (loading) {
-        btn.disabled = true;
-        if (textEl) textEl.style.opacity = '0.5';
-        if (loaderEl) loaderEl.classList.remove('hidden');
-    } else {
-        btn.disabled = false;
-        if (textEl) textEl.style.opacity = '1';
-        if (loaderEl) loaderEl.classList.add('hidden');
-    }
+    btn.disabled = loading;
+    if (textEl) textEl.style.opacity = loading ? '0.5' : '1';
+    if (loaderEl) loaderEl.classList.toggle('hidden', !loading);
 }
 
 function showProgress(step, percent) {
@@ -930,12 +589,9 @@ function hideProgress() {
 function showToast(message, type = 'info') {
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-
     const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
     toast.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${message}</span>`;
-
     els.toastContainer.appendChild(toast);
-
     setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateX(40px)';
@@ -943,6 +599,10 @@ function showToast(message, type = 'info') {
         setTimeout(() => toast.remove(), 300);
     }, 4000);
 }
+
+// Make functions accessible from inline onclick handlers
+window.removeProcessedImage = removeProcessedImage;
+window.handlePerImageRegenerate = handlePerImageRegenerate;
 
 // ============================================================
 // Start

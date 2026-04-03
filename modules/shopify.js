@@ -86,8 +86,18 @@ function getMimeType(filePath) {
         '.png': 'image/png',
         '.gif': 'image/gif',
         '.webp': 'image/webp',
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.mov': 'video/quicktime',
+        '.ogg': 'video/ogg',
     };
     return types[ext] || 'image/jpeg';
+}
+
+function getShopifyContentType(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    if (['.mp4', '.webm', '.mov', '.ogg'].includes(ext)) return 'VIDEO';
+    return 'IMAGE';
 }
 
 async function uploadFile(filePath, filename) {
@@ -112,6 +122,8 @@ async function uploadFile(filePath, filename) {
       }
     }
   `;
+
+    const shopifyContentType = getShopifyContentType(filePath);
 
     const stagedResult = await graphqlRequest(stagedUploadQuery, {
         input: [
@@ -154,6 +166,12 @@ async function uploadFile(filePath, filename) {
               url
             }
           }
+          ... on Video {
+            id
+            sources {
+              url
+            }
+          }
           ... on GenericFile {
             id
             url
@@ -171,7 +189,7 @@ async function uploadFile(filePath, filename) {
         files: [
             {
                 alt: filename,
-                contentType: 'IMAGE',
+                contentType: shopifyContentType,
                 originalSource: target.resourceUrl,
             },
         ],
@@ -182,15 +200,16 @@ async function uploadFile(filePath, filename) {
     }
 
     const createdFile = fileResult.fileCreate.files[0];
-    const fileUrl = await waitForFileReady(createdFile.id);
+    const fileUrl = await waitForFileReady(createdFile.id, shopifyContentType);
 
     return {
         id: createdFile.id,
         url: fileUrl,
+        mediaType: shopifyContentType.toLowerCase(),
     };
 }
 
-async function waitForFileReady(fileId, maxAttempts = 20) {
+async function waitForFileReady(fileId, contentType = 'IMAGE', maxAttempts = 20) {
     const query = `
     query getFile($id: ID!) {
       node(id: $id) {
@@ -200,6 +219,18 @@ async function waitForFileReady(fileId, maxAttempts = 20) {
           image {
             url
           }
+        }
+        ... on Video {
+          id
+          fileStatus
+          sources {
+            url
+          }
+        }
+        ... on GenericFile {
+          id
+          fileStatus
+          url
         }
       }
     }
@@ -211,8 +242,11 @@ async function waitForFileReady(fileId, maxAttempts = 20) {
         const result = await graphqlRequest(query, { id: fileId });
         const node = result.node;
 
-        if (node?.fileStatus === 'READY' && node?.image?.url) {
-            return node.image.url;
+        if (node?.fileStatus === 'READY') {
+            // Return the appropriate URL based on media type
+            if (node.image?.url) return node.image.url;
+            if (node.sources?.length > 0) return node.sources[0].url;
+            if (node.url) return node.url;
         }
         if (node?.fileStatus === 'FAILED') {
             throw new Error('File processing failed on Shopify');

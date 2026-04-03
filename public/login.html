@@ -4,106 +4,228 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Product Automator</title>
+    <title>Login — Shopify Product Automator</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
     <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: #0d0d14;
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
             padding: 20px;
+            background-image: radial-gradient(ellipse at 20% 50%, rgba(124, 58, 237, 0.12) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 60%);
         }
 
-        .login-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-lg);
+        .auth-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
             padding: 40px;
             width: 100%;
             max-width: 420px;
-            text-align: center;
-            box-shadow: var(--shadow-lg);
             backdrop-filter: blur(12px);
-            animation: fadeSlideUp 0.5s ease forwards;
         }
 
-        .login-logo {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 16px;
+        .logo {
+            text-align: center;
             margin-bottom: 32px;
         }
 
-        .login-logo-icon {
-            width: 64px;
-            height: 64px;
-            background: var(--gradient-accent);
-            border-radius: var(--radius-lg);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 32px;
-            box-shadow: var(--shadow-glow);
+        .logo-icon {
+            font-size: 36px;
+            margin-bottom: 8px;
         }
 
-        .login-title {
-            font-size: 24px;
+        .logo h1 {
+            font-size: 22px;
             font-weight: 700;
-            color: var(--text-primary);
-            letter-spacing: -0.02em;
+            color: #fff;
+            letter-spacing: -0.5px;
         }
-        
-        .login-subtitle {
-            font-size: 14px;
-            color: var(--text-secondary);
+
+        .logo p {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.45);
             margin-top: 4px;
         }
 
-        .login-form {
-            text-align: left;
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 4px;
+            margin-bottom: 28px;
         }
 
-        .login-form .form-group {
-            margin-bottom: 24px;
-        }
-        
-        .error-message {
-            color: var(--error);
+        .tab-btn {
+            flex: 1;
+            padding: 9px;
             font-size: 13px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        .tab-btn.active {
+            background: rgba(124, 58, 237, 0.8);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(124, 58, 237, 0.4);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 14px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            color: #fff;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: rgba(124, 58, 237, 0.7);
+            background: rgba(124, 58, 237, 0.05);
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.25);
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 13px;
+            background: linear-gradient(135deg, #7c3aed, #5b21b6);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
             margin-top: 8px;
-            min-height: 20px;
-            text-align: center;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .submit-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error-msg {
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .error-msg.show {
+            display: block;
+        }
+
+        .panel {
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
         }
     </style>
 </head>
 
 <body>
-    <div class="login-card">
-        <div class="login-logo">
-            <div class="login-logo-icon">⚡</div>
-            <div>
-                <h1 class="login-title">Internal Tool Access</h1>
-                <p class="login-subtitle">Product Automator Dashboard</p>
-            </div>
+    <div class="auth-card">
+        <div class="logo">
+            <div class="logo-icon">⚡</div>
+            <h1>Product Automator</h1>
+            <p>AI-Powered Shopify Tool</p>
         </div>
 
-        <form id="loginForm" class="login-form">
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" id="loginTab" onclick="switchTab('login')">Log In</button>
+            <button class="tab-btn" id="signupTab" onclick="switchTab('signup')">Sign Up</button>
+        </div>
+
+        <!-- Error -->
+        <div class="error-msg" id="errorMsg"></div>
+
+        <!-- Login Panel -->
+        <div class="panel active" id="loginPanel">
             <div class="form-group">
-                <label for="passwordInput">Password</label>
-                <input type="password" id="passwordInput" class="form-input" placeholder="Enter password" required autofocus>
-                <div id="errorMessage" class="error-message"></div>
+                <label>Email</label>
+                <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email">
             </div>
-            
-            <button type="submit" class="btn btn-primary btn-lg" id="loginBtn">
-                <span class="btn-text">Secure Login</span>
-                <span class="btn-loader hidden"></span>
-            </button>
-        </form>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+            </div>
+            <button class="submit-btn" id="loginBtn" onclick="handleLogin()">Log In</button>
+        </div>
+
+        <!-- Signup Panel -->
+        <div class="panel" id="signupPanel">
+            <div class="form-group">
+                <label>Full Name</label>
+                <input type="text" id="signupName" placeholder="John Doe" autocomplete="name">
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="signupEmail" placeholder="you@example.com" autocomplete="email">
+            </div>
+            <div class="form-group">
+                <label>Password <span style="font-weight:400;text-transform:none;letter-spacing:0">(min. 6
+                        characters)</span></label>
+                <input type="password" id="signupPassword" placeholder="••••••••" autocomplete="new-password">
+            </div>
+            <button class="submit-btn" id="signupBtn" onclick="handleSignup()">Create Account</button>
+        </div>
     </div>
 
     <script src="login.js"></script>

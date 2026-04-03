@@ -27,7 +27,7 @@
                     <span class="status-dot"></span>
                     <span class="status-text">Checking...</span>
                 </div>
-                <!-- Logout Button -->
+                <span id="userGreeting" style="font-size:13px;color:rgba(255,255,255,0.6);font-weight:500;"></span>
                 <button id="logoutBtn" class="btn btn-secondary" style="padding: 8px 16px; font-size: 13px;">
                     🚪 Logout
                 </button>
@@ -36,17 +36,20 @@
     </header>
 
     <main class="container">
-        <!-- Mode Toggle -->
-        <div class="mode-toggle">
-            <button class="mode-btn active" data-mode="single" id="singleModeBtn">
-                <span class="mode-icon">🎯</span> Step-by-Step
-            </button>
-            <button class="mode-btn" data-mode="batch" id="batchModeBtn">
-                <span class="mode-icon">📦</span> Batch Mode
-            </button>
-        </div>
 
-        <!-- General Settings Section -->
+        <!-- ── My Products Dashboard ── -->
+        <section class="card" id="dashboardSection" style="margin-bottom:0;">
+            <div class="card-header">
+                <h2>📦 My Products</h2>
+                <p class="card-subtitle">Products you've added — with order counts from the last 15 days</p>
+            </div>
+            <div id="dashboardGrid"
+                style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-top:16px;">
+                <p class="empty-state" id="dashboardEmpty">Loading your products...</p>
+            </div>
+        </section>
+
+        <!-- ── General Settings ── -->
         <section class="card settings-section" style="margin-bottom: -4px;">
             <div class="card-header" style="margin-bottom: 12px;">
                 <h2>⚙️ API Settings</h2>
@@ -55,15 +58,15 @@
                 <label for="customApiKey">🔑 Custom Gemini API Key (Optional)</label>
                 <input type="password" id="customApiKey" class="form-input" placeholder="AIzaSy...">
                 <p style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">If left empty, the system default
-                    API key will be used for AI capabilities.</p>
+                    API key will be used.</p>
             </div>
         </section>
 
-        <!-- URL Input Section -->
+        <!-- ── URL Input ── -->
         <section class="card url-section">
             <div class="card-header">
                 <h2>🔗 Product URL</h2>
-                <p class="card-subtitle" id="urlSubtitle">Paste a reference product URL to get started</p>
+                <p class="card-subtitle">Paste a reference product URL to get started</p>
             </div>
             <div class="input-group">
                 <textarea id="urlInput" class="url-input" placeholder="https://example.com/product/awesome-item"
@@ -76,7 +79,7 @@
             </div>
         </section>
 
-        <!-- Preview Section (hidden by default) -->
+        <!-- ── Preview Section ── -->
         <section class="card preview-section hidden" id="previewSection">
             <div class="card-header">
                 <h2>📋 Product Preview</h2>
@@ -135,7 +138,6 @@
                 </button>
             </div>
 
-            <!-- Processed Images Comparison (shown after processing) -->
             <div id="comparisonSection" class="hidden" style="margin-top: 20px;">
                 <h3 style="font-size:14px;font-weight:600;color:var(--text-secondary);margin-bottom:12px;">🔄 Processed
                     Images</h3>
@@ -143,22 +145,20 @@
             </div>
         </section>
 
-        <!-- Shopify Upload Section (hidden by default) -->
+        <!-- ── Shopify Upload Section ── -->
         <section class="card upload-section hidden" id="uploadSection">
             <div class="card-header">
                 <h2>🛍️ Create Product on Shopify</h2>
-                <p class="card-subtitle">Review and confirm the details that will be added to your store</p>
+                <p class="card-subtitle">Review and confirm the details</p>
             </div>
 
-            <!-- Final Product Preview -->
             <div class="shopify-preview">
                 <div class="form-group">
-                    <label for="finalTitle">🎯 Product Title (for Shopify)</label>
+                    <label for="finalTitle">🎯 Product Title</label>
                     <input type="text" id="finalTitle" class="form-input"
                         placeholder="AI-generated title will appear here">
                 </div>
 
-                <!-- Generate AI Description button -->
                 <div class="action-bar" style="border-top: none; padding-top: 0; margin-bottom: 16px;">
                     <button class="btn btn-secondary" id="generateContentBtn">
                         <span class="btn-icon">✨</span>
@@ -169,43 +169,14 @@
 
                 <div class="form-group">
                     <label>📝 Live Description Preview</label>
-
-                    <!-- Template tabs -->
-                    <div style="display:flex;gap:0;margin-bottom:0;border-bottom:2px solid rgba(255,255,255,0.08);">
-                        <button type="button" class="template-tab active" id="tabA" onclick="switchTemplateTab('A')"
-                            style="padding:10px 20px;font-size:13px;font-weight:600;background:var(--accent-primary);color:#fff;border:none;border-radius:8px 8px 0 0;cursor:pointer;transition:all .2s;">Template
-                            A — Premium</button>
-                        <button type="button" class="template-tab" id="tabB" onclick="switchTemplateTab('B')"
-                            style="padding:10px 20px;font-size:13px;font-weight:600;background:rgba(255,255,255,0.05);color:var(--text-muted);border:none;border-radius:8px 8px 0 0;cursor:pointer;transition:all .2s;">Template
-                            B — Editorial</button>
-                    </div>
-
                     <div class="preview-frame-wrapper">
-                        <iframe id="descriptionPreviewA" class="preview-iframe" sandbox="allow-same-origin"></iframe>
-                        <iframe id="descriptionPreviewB" class="preview-iframe" sandbox="allow-same-origin"
-                            style="display:none;"></iframe>
+                        <iframe id="descriptionPreview" class="preview-iframe" sandbox="allow-same-origin"></iframe>
                     </div>
 
-                    <!-- Template selection -->
-                    <div
-                        style="display:flex;align-items:center;gap:16px;margin-top:10px;padding:12px 16px;background:rgba(124,58,237,0.08);border-radius:10px;border:1px solid rgba(124,58,237,0.2);">
-                        <span style="font-size:13px;font-weight:600;color:var(--text-secondary);">Use for
-                            Shopify:</span>
-                        <label
-                            style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-primary);">
-                            <input type="radio" name="templateChoice" value="A" checked id="templateChoiceA"> Template A
-                        </label>
-                        <label
-                            style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-primary);">
-                            <input type="radio" name="templateChoice" value="B" id="templateChoiceB"> Template B
-                        </label>
-                    </div>
-
-                    <!-- Custom Description Prompt -->
                     <div class="custom-prompt-section" style="margin-top: 12px;">
                         <label for="customDescPrompt">✏️ Want a different description? Give your instructions:</label>
                         <textarea id="customDescPrompt" class="form-input form-textarea" rows="2"
-                            placeholder="e.g. Make it more formal. Add a warranty section. Emphasize durability."></textarea>
+                            placeholder="e.g. Make it more formal. Add a warranty section."></textarea>
                         <button class="btn btn-secondary" id="customDescBtn" style="margin-top: 8px;">
                             <span class="btn-icon">✍️</span>
                             <span class="btn-text">Regenerate Description</span>
@@ -213,6 +184,7 @@
                         </button>
                     </div>
                 </div>
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="finalPrice">💰 Price</label>
@@ -227,7 +199,6 @@
 
             <hr style="border-color: rgba(255,255,255,0.08); margin: 24px 0;">
 
-            <!-- Shopify-specific Config -->
             <div class="form-row">
                 <div class="form-group">
                     <label for="productType">Product Type</label>
@@ -265,22 +236,7 @@
             </button>
         </section>
 
-        <!-- Batch Queue Section (hidden by default) -->
-        <section class="card batch-section hidden" id="batchSection">
-            <div class="card-header">
-                <h2>📦 Batch Queue</h2>
-                <p class="card-subtitle" id="batchSubtitle">Processing products...</p>
-            </div>
-            <div class="batch-progress">
-                <div class="batch-progress-bar">
-                    <div class="batch-progress-fill" id="batchProgressFill"></div>
-                </div>
-                <span class="batch-progress-text" id="batchProgressText">0%</span>
-            </div>
-            <div class="batch-list" id="batchList"></div>
-        </section>
-
-        <!-- Progress Section -->
+        <!-- ── Progress ── -->
         <section class="card progress-section hidden" id="progressSection">
             <div class="card-header">
                 <h2>⏳ Progress</h2>
@@ -291,7 +247,7 @@
             <p class="progress-step" id="progressStep">Starting...</p>
         </section>
 
-        <!-- Results Section -->
+        <!-- ── Results ── -->
         <section class="card results-section hidden" id="resultsSection">
             <div class="card-header">
                 <h2>✅ Product Created!</h2>
@@ -299,15 +255,6 @@
             <div class="result-content" id="resultContent"></div>
         </section>
 
-        <!-- History Section -->
-        <section class="card history-section">
-            <div class="card-header">
-                <h2>📜 Recent Activity</h2>
-            </div>
-            <div class="history-list" id="historyList">
-                <p class="empty-state">No products added yet. Start by pasting a product URL above!</p>
-            </div>
-        </section>
     </main>
 
     <!-- Toast Container -->

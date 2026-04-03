@@ -1,51 +1,87 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const loginForm = document.getElementById('loginForm');
-    const passwordInput = document.getElementById('passwordInput');
-    const loginBtn = document.getElementById('loginBtn');
-    const btnText = loginBtn.querySelector('.btn-text');
-    const btnLoader = loginBtn.querySelector('.btn-loader');
-    const errorMessage = document.getElementById('errorMessage');
+function switchTab(tab) {
+    document.getElementById('loginPanel').classList.toggle('active', tab === 'login');
+    document.getElementById('signupPanel').classList.toggle('active', tab === 'signup');
+    document.getElementById('loginTab').classList.toggle('active', tab === 'login');
+    document.getElementById('signupTab').classList.toggle('active', tab === 'signup');
+    showError('');
+}
 
-    loginForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
+function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = msg;
+    el.classList.toggle('show', !!msg);
+}
 
-        const password = passwordInput.value.trim();
-        if (!password) {
-            errorMessage.textContent = 'Please enter a password';
-            return;
+function setLoading(btnId, loading) {
+    const btn = document.getElementById(btnId);
+    btn.disabled = loading;
+    btn.textContent = loading ? 'Please wait...' : btn.id === 'loginBtn' ? 'Log In' : 'Create Account';
+}
+
+async function handleLogin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+
+    if (!email || !password) { showError('Please enter your email and password.'); return; }
+
+    setLoading('loginBtn', true);
+    showError('');
+
+    try {
+        const res = await fetch('/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            window.location.href = '/';
+        } else {
+            showError(data.error || 'Login failed.');
         }
+    } catch (err) {
+        showError('Network error. Please try again.');
+    } finally {
+        setLoading('loginBtn', false);
+    }
+}
 
-        // Set Loading State
-        loginBtn.disabled = true;
-        btnText.textContent = 'Authenticating...';
-        btnLoader.classList.remove('hidden');
-        errorMessage.textContent = '';
+async function handleSignup() {
+    const name = document.getElementById('signupName').value.trim();
+    const email = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
 
-        try {
-            const res = await fetch('/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password })
-            });
+    if (!name || !email || !password) { showError('Please fill in all fields.'); return; }
+    if (password.length < 6) { showError('Password must be at least 6 characters.'); return; }
 
-            const data = await res.json();
+    setLoading('signupBtn', true);
+    showError('');
 
-            if (data.success) {
-                // Success: Redirect to dashboard
-                window.location.href = '/';
-            } else {
-                // Error: Show message
-                errorMessage.textContent = data.error || 'Incorrect password';
-                passwordInput.value = '';
-                passwordInput.focus();
-            }
-        } catch (err) {
-            errorMessage.textContent = 'Connection error. Please try again.';
-        } finally {
-            // Reset Loading State
-            loginBtn.disabled = false;
-            btnText.textContent = 'Secure Login';
-            btnLoader.classList.add('hidden');
+    try {
+        const res = await fetch('/auth/signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, password }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            window.location.href = '/';
+        } else {
+            showError(data.error || 'Signup failed.');
         }
-    });
+    } catch (err) {
+        showError('Network error. Please try again.');
+    } finally {
+        setLoading('signupBtn', false);
+    }
+}
+
+// Allow Enter key to submit
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        const loginActive = document.getElementById('loginPanel').classList.contains('active');
+        loginActive ? handleLogin() : handleSignup();
+    }
 });

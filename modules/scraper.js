@@ -12,7 +12,7 @@ const PROCESSED_DIR = path.join(TEMP_DIR, 'processed');
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
 if (!fs.existsSync(PROCESSED_DIR)) fs.mkdirSync(PROCESSED_DIR, { recursive: true });
 
-function downloadImage(url, filename) {
+function downloadFile(url, filename) {
     return new Promise((resolve, reject) => {
         const filePath = path.join(TEMP_DIR, filename);
         const file = fs.createWriteStream(filePath);
@@ -20,7 +20,7 @@ function downloadImage(url, filename) {
 
         client.get(url, (response) => {
             if (response.statusCode === 301 || response.statusCode === 302) {
-                downloadImage(response.headers.location, filename).then(resolve).catch(reject);
+                downloadFile(response.headers.location, filename).then(resolve).catch(reject);
                 file.close();
                 fs.unlinkSync(filePath);
                 return;
@@ -28,7 +28,7 @@ function downloadImage(url, filename) {
             if (response.statusCode !== 200) {
                 file.close();
                 fs.unlinkSync(filePath);
-                reject(new Error(`Failed to download image: HTTP ${response.statusCode}`));
+                reject(new Error(`Failed to download file: HTTP ${response.statusCode}`));
                 return;
             }
             response.pipe(file);
@@ -40,6 +40,9 @@ function downloadImage(url, filename) {
         });
     });
 }
+
+// Alias for backward compatibility
+const downloadImage = downloadFile;
 
 function extractFromJsonLd(jsonLdScripts) {
     for (const script of jsonLdScripts) {
@@ -148,11 +151,16 @@ async function scrapeProduct(url) {
         page.on('response', async (response) => {
             const resUrl = response.url();
             const contentType = response.headers()['content-type'] || '';
-            if (contentType.startsWith('image/') && (contentType.includes('jpeg') || contentType.includes('png') || contentType.includes('webp'))) {
-                // Only track images above a certain URL-path length (skip tiny tracking pixels)
-                if (resUrl.length > 40 && isProductImage(resUrl)) {
-                    networkImages.add(resUrl);
-                }
+            const isImage = contentType.startsWith('image/') && (
+                contentType.includes('jpeg') || contentType.includes('png') ||
+                contentType.includes('webp') || contentType.includes('gif')
+            );
+            const isVideo = contentType.startsWith('video/') && (
+                contentType.includes('mp4') || contentType.includes('webm') ||
+                contentType.includes('quicktime') || contentType.includes('ogg')
+            );
+            if ((isImage || isVideo) && resUrl.length > 40 && isProductImage(resUrl)) {
+                networkImages.add(resUrl);
             }
         });
 
@@ -297,7 +305,7 @@ async function scrapeProduct(url) {
             // Strategy C: <a> tags and data attributes that link to full-size images
             document.querySelectorAll('a[data-image], a[data-zoom-image], a[data-full-image], a[data-href], [data-zoom-image], [data-full-size], [data-large-image]').forEach(el => {
                 const href = el.getAttribute('data-image') || el.getAttribute('data-zoom-image') || el.getAttribute('data-full-image') || el.getAttribute('data-large-image') || el.getAttribute('data-full-size') || el.getAttribute('href');
-                if (href && /\.(jpg|jpeg|png|webp)/i.test(href)) {
+                if (href && /\.(jpg|jpeg|png|webp|gif)/i.test(href)) {
                     images.add(href);
                 }
             });
@@ -305,10 +313,8 @@ async function scrapeProduct(url) {
             // Strategy D: Look for Shopify-specific media JSON embedded in scripts
             document.querySelectorAll('script').forEach(script => {
                 const text = script.textContent || '';
-                // Shopify stores images in a `media` array within JSON configs
                 try {
-                    // Match patterns like "src":"//cdn.shopify.com/...jpg"
-                    const matches = text.matchAll(/"(?:src|url|original|large|full)":\s*"(\/\/[^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/gi);
+                    const matches = text.matchAll(/"(?:src|url|original|large|full)":\s*"(\/\/[^"]+\.(?:jpg|jpeg|png|webp|gif)[^"]*)"/gi);
                     for (const m of matches) {
                         if (m[1] && !m[1].includes('logo') && !m[1].includes('icon')) {
                             images.add(m[1]);
@@ -316,6 +322,26 @@ async function scrapeProduct(url) {
                     }
                 } catch (e) { }
             });
+
+            // Strategy E (Videos): Scrape <video> and <source> tags
+            const videos = new Set();
+            document.querySelectorAll('video[src], video source[src], [data-video-src], [data-video-url]').forEach(el => {
+                const src = el.getAttribute('src') || el.getAttribute('data-video-src') || el.getAttribute('data-video-url');
+                if (src && /\.(mp4|webm|mov|ogg)/i.test(src)) {
+                    videos.add(src);
+                }
+            });
+            // Also scan scripts for video URLs
+            document.querySelectorAll('script').forEach(script => {
+                const text = script.textContent || '';
+                try {
+                    const matches = text.matchAll(/"(?:src|url|videoUrl|video_url)":\s*"([^"]+\.(?:mp4|webm|mov|ogg)[^"]*)"/gi);
+                    for (const m of matches) {
+                        if (m[1]) videos.add(m[1]);
+                    }
+                } catch (e) { }
+            });
+            result.dom.videos = [...videos];
 
             // Strategy E: Fallback — any large visible images on the page
             if (images.size < 2) {
@@ -341,6 +367,11 @@ async function scrapeProduct(url) {
         });
 
         // ──────────────────────────────────────────────
+        // Collect video URLs from DOM
+        // ──────────────────────────────────────────────
+        const domVideos = pageData.dom.videos || [];
+
+        // ──────────────────────────────────────────────
         // MERGE all layers into a single deduplicated list
         // ──────────────────────────────────────────────
         let productData = extractFromJsonLd(pageData.jsonLd) || { title: '', description: '', brand: '', images: [], price: '', currency: '' };
@@ -351,13 +382,19 @@ async function scrapeProduct(url) {
         if (!productData.currency) productData.currency = pageData.og['og:price:currency'] || pageData.meta['product:price:currency'] || '';
         if (!productData.brand) productData.brand = pageData.meta['product:brand'] || pageData.dom.brand || '';
 
-        // MERGE images from all sources — not just one layer
+        // MERGE images+gifs from all sources — not just one layer
         const pageUrl = new URL(url);
         const allImageSources = [
             ...(productData.images || []),           // JSON-LD
             ...(pageData.og['og:images'] || []),     // All og:image tags
             ...(pageData.dom.images || []),           // DOM scraped
-            ...[...networkImages],                   // Network intercepted
+            ...[...networkImages].filter(u => !/\.(mp4|webm|mov|ogg)/i.test(u)), // Network images/gifs only
+        ];
+
+        // Collect all video URLs
+        const allVideoSources = [
+            ...domVideos,
+            ...[...networkImages].filter(u => /\.(mp4|webm|mov|ogg)/i.test(u)),
         ];
 
         // Normalize, deduplicate, filter
@@ -378,24 +415,52 @@ async function scrapeProduct(url) {
 
         productData.images = finalImages.slice(0, 15);
 
-        console.log(`Found ${productData.images.length} images from: JSON-LD(${(productData.images || []).length}), OG(${(pageData.og['og:images'] || []).length}), DOM(${(pageData.dom.images || []).length}), Network(${networkImages.size})`);
+        // Deduplicate videos
+        const seenVideoBases = new Set();
+        const finalVideos = [];
+        for (const raw of allVideoSources) {
+            const normalized = normalizeImageUrl(raw, pageUrl.origin);
+            if (!normalized) continue;
+            let baseKey;
+            try { baseKey = new URL(normalized).pathname; } catch { baseKey = normalized; }
+            if (seenVideoBases.has(baseKey)) continue;
+            seenVideoBases.add(baseKey);
+            finalVideos.push(normalized);
+        }
+        productData.videos = finalVideos.slice(0, 5);
 
-        // Download all images locally
+        console.log(`Found ${productData.images.length} images, ${productData.videos.length} videos from network+DOM scraping`);
+
+        // Download all images/GIFs locally
         const localImages = [];
         for (let i = 0; i < productData.images.length; i++) {
             try {
                 const ext = path.extname(new URL(productData.images[i]).pathname).split('?')[0] || '.jpg';
                 const filename = `${uuidv4()}${ext}`;
-                const localPath = await downloadImage(productData.images[i], filename);
-                localImages.push({ originalUrl: productData.images[i], localPath, filename });
+                const localPath = await downloadFile(productData.images[i], filename);
+                localImages.push({ originalUrl: productData.images[i], localPath, filename, mediaType: 'image' });
             } catch (err) {
                 console.error(`Failed to download image ${i + 1}: ${err.message}`);
             }
         }
 
+        // Download all videos locally
+        const localVideos = [];
+        for (let i = 0; i < productData.videos.length; i++) {
+            try {
+                const ext = path.extname(new URL(productData.videos[i]).pathname).split('?')[0] || '.mp4';
+                const filename = `${uuidv4()}${ext}`;
+                const localPath = await downloadFile(productData.videos[i], filename);
+                localVideos.push({ originalUrl: productData.videos[i], localPath, filename, mediaType: 'video' });
+            } catch (err) {
+                console.error(`Failed to download video ${i + 1}: ${err.message}`);
+            }
+        }
+
         productData.localImages = localImages;
+        productData.localVideos = localVideos;
         productData.sourceUrl = url;
-        console.log(`Successfully downloaded ${localImages.length}/${productData.images.length} images`);
+        console.log(`Successfully downloaded ${localImages.length}/${productData.images.length} images and ${localVideos.length}/${productData.videos.length} videos`);
         return productData;
     } finally {
         if (browser) await browser.close();
@@ -427,4 +492,4 @@ async function autoScroll(page) {
     });
 }
 
-module.exports = { scrapeProduct, downloadImage };
+module.exports = { scrapeProduct, downloadFile, downloadImage: downloadFile };
