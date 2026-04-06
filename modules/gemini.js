@@ -377,8 +377,8 @@ RULES:
 /**
  * Generate a clean product title without brand references
  */
-async function generateTitle(productData) {
-    const client = getClient();
+async function generateTitle(productData, customApiKey = null) {
+    const client = getClient(customApiKey);
 
     const prompt = `Given this product title: "${productData.title}"
 And brand name: "${productData.brand || 'Unknown'}"

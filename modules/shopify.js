@@ -317,10 +317,72 @@ async function createProduct(productData) {
     return result.product;
 }
 
+/**
+ * Publish a product to ALL available sales channels.
+ * Queries the store's active publications and publishes to each.
+ */
+async function publishToAllChannels(shopifyProductId) {
+    try {
+        // 1. Get all available publications (sales channels)
+        const pubQuery = `
+            query {
+                publications(first: 20) {
+                    edges {
+                        node {
+                            id
+                            name
+                        }
+                    }
+                }
+            }
+        `;
+        const pubResult = await graphqlRequest(pubQuery);
+        const publications = pubResult.publications.edges.map(e => e.node);
+
+        if (!publications.length) {
+            console.log('No sales channels found to publish to');
+            return;
+        }
+
+        console.log(`Publishing to ${publications.length} channel(s): ${publications.map(p => p.name).join(', ')}`);
+
+        // 2. Publish to all channels in one mutation
+        const productGid = `gid://shopify/Product/${shopifyProductId}`;
+        const publishInput = publications.map(pub => ({ publicationId: pub.id }));
+
+        const publishMutation = `
+            mutation publishablePublish($id: ID!, $input: [PublicationInput!]!) {
+                publishablePublish(id: $id, input: $input) {
+                    userErrors {
+                        field
+                        message
+                    }
+                }
+            }
+        `;
+
+        const publishResult = await graphqlRequest(publishMutation, {
+            id: productGid,
+            input: publishInput,
+        });
+
+        const errors = publishResult.publishablePublish?.userErrors || [];
+        if (errors.length > 0) {
+            console.warn('Publish warnings:', errors.map(e => `${e.field}: ${e.message}`).join(', '));
+        } else {
+            console.log(`✅ Product published to all ${publications.length} sales channel(s)`);
+        }
+    } catch (err) {
+        // Non-fatal — product is created, just not published to all channels
+        console.error('publishToAllChannels error (non-fatal):', err.message);
+    }
+}
+
 module.exports = {
     testConnection,
     uploadFile,
     createProduct,
+    publishToAllChannels,
     graphqlRequest,
     restRequest,
 };

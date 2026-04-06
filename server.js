@@ -11,7 +11,7 @@ const Product = require('./models/Product');
 
 const { scrapeProduct } = require('./modules/scraper');
 const { processImages, processImageWithPrompt, generateDescriptionJSON, generateDescriptionJSONWithPrompt, generateTitle } = require('./modules/gemini');
-const { testConnection, uploadFile, createProduct, restRequest } = require('./modules/shopify');
+const { testConnection, uploadFile, createProduct, publishToAllChannels, restRequest } = require('./modules/shopify');
 const { runSingle } = require('./modules/pipeline');
 const { productTemplate } = require('./templates/productDescriptionTemplate');
 
@@ -208,6 +208,7 @@ app.get('/api/my-products-with-orders', async (req, res) => {
         const products = dbProducts.map(p => ({
             _id: p._id,
             shopifyProductId: p.shopifyProductId,
+            handle: p.handle,
             title: p.title,
             status: p.status,
             adminUrl: p.adminUrl,
@@ -370,6 +371,11 @@ app.post('/api/create-product', async (req, res) => {
             imageUrl: shopifyProduct.images?.[0]?.src || null,
             adminUrl,
         });
+
+        // Publish to all sales channels (non-blocking, non-fatal)
+        publishToAllChannels(shopifyProduct.id).catch(err =>
+            console.error('Background publish failed:', err.message)
+        );
 
         res.json({
             success: true,

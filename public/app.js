@@ -174,7 +174,8 @@ async function loadDashboard() {
                 <td class="product-id-cell">${p.shopifyProductId}</td>
                 <td>${orderDisplay}</td>
                 <td>
-                    <a href="${p.adminUrl}" target="_blank" class="shopify-link">Open →</a>
+                    <a href="${p.handle ? `https://gigglo.in/products/${p.handle}` : p.adminUrl}" 
+                       target="_blank" class="shopify-link">Open →</a>
                 </td>
             `;
             tbody.appendChild(tr);
