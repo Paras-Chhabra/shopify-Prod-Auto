@@ -100,77 +100,28 @@ function getShopifyContentType(filePath) {
     return 'IMAGE';
 }
 
-async function uploadFile(filePath, filename) {
-    const fileSize = fs.statSync(filePath).size;
-    const mimeType = getMimeType(filePath);
-
-    const stagedUploadQuery = `
-    mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
-      stagedUploadsCreate(input: $input) {
-        stagedTargets {
-          url
-          resourceUrl
-          parameters {
-            name
-            value
-          }
-        }
-        userErrors {
-          field
-          message
-        }
-      }
-    }
-  `;
-
-    const shopifyContentType = getShopifyContentType(filePath);
-
-    const stagedResult = await graphqlRequest(stagedUploadQuery, {
-        input: [
-            {
-                filename: filename,
-                mimeType: mimeType,
-                httpMethod: 'POST',
-                resource: 'FILE',
-                fileSize: String(fileSize),
-            },
-        ],
-    });
-
-    const target = stagedResult.stagedUploadsCreate.stagedTargets[0];
-    if (!target) {
-        throw new Error('Failed to create staged upload target');
-    }
-
-    const form = new FormData();
-    for (const param of target.parameters) {
-        form.append(param.name, param.value);
-    }
-    form.append('file', fs.createReadStream(filePath), { filename });
-
-    await axios.post(target.url, form, {
-        headers: {
-            ...form.getHeaders(),
-        },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-    });
+/**
+ * Upload a media file to Shopify.
+ * Accepts a public DO Spaces URL — Shopify downloads it directly.
+ * No staged upload or local file reading needed.
+ */
+async function uploadFile(fileUrl, filename) {
+    const isVideo = /\.(mp4|webm|mov|ogg)/i.test(filename);
+    const contentType = isVideo ? 'VIDEO' : 'IMAGE';
 
     const fileCreateQuery = `
     mutation fileCreate($files: [FileCreateInput!]!) {
       fileCreate(files: $files) {
         files {
+          id
+          fileStatus
           ... on MediaImage {
             id
-            image {
-              url
-            }
+            image { url }
           }
           ... on Video {
             id
-            sources {
-              url
-            }
+            sources { url }
           }
           ... on GenericFile {
             id
@@ -186,27 +137,19 @@ async function uploadFile(filePath, filename) {
   `;
 
     const fileResult = await graphqlRequest(fileCreateQuery, {
-        files: [
-            {
-                alt: filename,
-                contentType: shopifyContentType,
-                originalSource: target.resourceUrl,
-            },
-        ],
+        files: [{ alt: filename, contentType, originalSource: fileUrl }],
     });
 
-    if (fileResult.fileCreate.userErrors.length > 0) {
-        throw new Error(`File create error: ${JSON.stringify(fileResult.fileCreate.userErrors)}`);
+    const errors = fileResult.fileCreate?.userErrors || [];
+    if (errors.length > 0) {
+        throw new Error(`File create error: ${JSON.stringify(errors)}`);
     }
 
     const createdFile = fileResult.fileCreate.files[0];
-    const fileUrl = await waitForFileReady(createdFile.id, shopifyContentType);
+    if (!createdFile) throw new Error('No file returned from Shopify fileCreate');
 
-    return {
-        id: createdFile.id,
-        url: fileUrl,
-        mediaType: shopifyContentType.toLowerCase(),
-    };
+    const readyUrl = await waitForFileReady(createdFile.id, contentType);
+    return { id: createdFile.id, url: readyUrl, mediaType: contentType.toLowerCase() };
 }
 
 async function waitForFileReady(fileId, contentType = 'IMAGE', maxAttempts = 20) {

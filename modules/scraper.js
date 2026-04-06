@@ -4,13 +4,12 @@ const fs = require('fs');
 const https = require('https');
 const http = require('http');
 const { v4: uuidv4 } = require('uuid');
+const { uploadToSpaces } = require('./storage');
 
 const TEMP_DIR = path.join(__dirname, '..', 'temp');
-const PROCESSED_DIR = path.join(TEMP_DIR, 'processed');
 
-// Ensure temp directories exist
+// Ensure temp directory exists for temporary scraping downloads
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
-if (!fs.existsSync(PROCESSED_DIR)) fs.mkdirSync(PROCESSED_DIR, { recursive: true });
 
 function downloadFile(url, filename) {
     return new Promise((resolve, reject) => {
@@ -431,36 +430,41 @@ async function scrapeProduct(url) {
 
         console.log(`Found ${productData.images.length} images, ${productData.videos.length} videos from network+DOM scraping`);
 
-        // Download all images/GIFs locally
+        // Download images then upload to DO Spaces
         const localImages = [];
         for (let i = 0; i < productData.images.length; i++) {
             try {
                 const ext = path.extname(new URL(productData.images[i]).pathname).split('?')[0] || '.jpg';
                 const filename = `${uuidv4()}${ext}`;
                 const localPath = await downloadFile(productData.images[i], filename);
-                localImages.push({ originalUrl: productData.images[i], localPath, filename, mediaType: 'image' });
+                const spacesUrl = await uploadToSpaces(localPath, 'scraped');
+                // Delete temp file after Spaces upload
+                try { fs.unlinkSync(localPath); } catch (_) { }
+                localImages.push({ originalUrl: productData.images[i], spacesUrl, filename, mediaType: 'image' });
             } catch (err) {
-                console.error(`Failed to download image ${i + 1}: ${err.message}`);
+                console.error(`Failed to process image ${i + 1}: ${err.message}`);
             }
         }
 
-        // Download all videos locally
+        // Download videos then upload to DO Spaces
         const localVideos = [];
         for (let i = 0; i < productData.videos.length; i++) {
             try {
                 const ext = path.extname(new URL(productData.videos[i]).pathname).split('?')[0] || '.mp4';
                 const filename = `${uuidv4()}${ext}`;
                 const localPath = await downloadFile(productData.videos[i], filename);
-                localVideos.push({ originalUrl: productData.videos[i], localPath, filename, mediaType: 'video' });
+                const spacesUrl = await uploadToSpaces(localPath, 'scraped');
+                try { fs.unlinkSync(localPath); } catch (_) { }
+                localVideos.push({ originalUrl: productData.videos[i], spacesUrl, filename, mediaType: 'video' });
             } catch (err) {
-                console.error(`Failed to download video ${i + 1}: ${err.message}`);
+                console.error(`Failed to process video ${i + 1}: ${err.message}`);
             }
         }
 
         productData.localImages = localImages;
         productData.localVideos = localVideos;
         productData.sourceUrl = url;
-        console.log(`Successfully downloaded ${localImages.length}/${productData.images.length} images and ${localVideos.length}/${productData.videos.length} videos`);
+        console.log(`Uploaded ${localImages.length}/${productData.images.length} images and ${localVideos.length}/${productData.videos.length} videos to DO Spaces`);
         return productData;
     } finally {
         if (browser) await browser.close();

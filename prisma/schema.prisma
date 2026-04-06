@@ -1,0 +1,33 @@
+// Prisma schema for Shopify Product Automator
+// Using DigitalOcean Managed PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  products     Product[]
+}
+
+model Product {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopifyProductId String
+  title            String
+  handle           String?
+  status           String   @default("active")
+  adminUrl         String?
+  imageUrl         String?
+  createdAt        DateTime @default(now())
+}

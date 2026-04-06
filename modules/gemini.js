@@ -1,12 +1,8 @@
 const { GoogleGenAI } = require('@google/genai');
-const fs = require('fs');
+const axios = require('axios');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-
-const PROCESSED_DIR = path.join(__dirname, '..', 'temp', 'processed');
-
-// Ensure processed directory exists
-if (!fs.existsSync(PROCESSED_DIR)) fs.mkdirSync(PROCESSED_DIR, { recursive: true });
+const { uploadBufferToSpaces } = require('./storage');
 
 let genAI = null;
 
@@ -28,29 +24,26 @@ function getClient(customKey = null) {
  * Process a single image — strict logo editing only.
  * Removes brand logo/name and replaces with ourBrand where removed.
  */
-async function processImage(imagePath, customApiKey = null, brandName = '', ourBrand = 'gigglo') {
+async function processImage(imageUrl, customApiKey = null, brandName = '', ourBrand = 'gigglo') {
     const client = getClient(customApiKey);
 
-    const imageBuffer = fs.readFileSync(imagePath);
+    // Download image from URL to buffer
+    const response = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 30000 });
+    const imageBuffer = Buffer.from(response.data);
     const base64Image = imageBuffer.toString('base64');
-    const mimeType = getMimeType(imagePath);
+    const mimeType = (response.headers['content-type'] || 'image/jpeg').split(';')[0].trim();
 
     const brandHint = brandName
         ? `\nThe brand name on this product is "${brandName}". Look specifically for this name or its logo.`
         : '';
 
     try {
-        const response = await client.models.generateContent({
+        const aiResponse = await client.models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: [{
                 role: 'user',
                 parts: [
-                    {
-                        inlineData: {
-                            mimeType,
-                            data: base64Image,
-                        },
-                    },
+                    { inlineData: { mimeType, data: base64Image } },
                     {
                         text: `You are a precise product photo editor. This is a MINIMAL EDIT task, NOT image generation.
 
@@ -64,71 +57,34 @@ ${brandHint}
 YOUR ONLY TASK:
 - Find any BRAND LOGO or BRAND NAME text printed/displayed on the product or packaging.
 - Remove it cleanly by filling with surrounding pixels to match the surface.
-- In the EXACT same position and at a SIMILAR size, place the text "${ourBrand}" in a style that looks natural on that surface (matching the approximate font weight, color that contrasts with the surface, and orientation of the original brand text).
+- In the EXACT same position and at a SIMILAR size, place the text "${ourBrand}" in a style that looks natural on that surface.
 
 CRITICAL:
-- If the image does NOT contain any visible brand logo or brand name text, return the image COMPLETELY UNCHANGED. Do NOT add "${ourBrand}" anywhere.
+- If the image does NOT contain any visible brand logo or brand name text, return the image COMPLETELY UNCHANGED.
 - Only replace what was there. Do not invent logo placements.
 
 Output ONLY the edited image.`,
                     },
                 ],
             }],
-            config: {
-                responseModalities: ['IMAGE', 'TEXT'],
-            },
+            config: { responseModalities: ['IMAGE', 'TEXT'] },
         });
 
-        console.log('Gemini response received. Checking for image data...');
-        console.log('Candidates:', response.candidates?.length || 0);
-
-        if (response.candidates && response.candidates[0]?.content?.parts) {
-            const parts = response.candidates[0].content.parts;
-            console.log(`Response has ${parts.length} part(s)`);
-
-            for (let i = 0; i < parts.length; i++) {
-                const part = parts[i];
+        if (aiResponse.candidates?.[0]?.content?.parts) {
+            for (const part of aiResponse.candidates[0].content.parts) {
                 if (part.inlineData) {
-                    console.log(`Part ${i}: inlineData found (mimeType: ${part.inlineData.mimeType}, size: ${part.inlineData.data?.length || 0} chars)`);
                     const outputFilename = `processed_${uuidv4()}.png`;
-                    const outputPath = path.join(PROCESSED_DIR, outputFilename);
                     const outputBuffer = Buffer.from(part.inlineData.data, 'base64');
-                    fs.writeFileSync(outputPath, outputBuffer);
-                    console.log(`Image processed successfully: ${outputPath}`);
-                    return {
-                        success: true,
-                        originalPath: imagePath,
-                        processedPath: outputPath,
-                        filename: outputFilename,
-                    };
-                } else if (part.text) {
-                    console.log(`Part ${i}: TEXT response: "${part.text.substring(0, 200)}"`);
-                } else {
-                    console.log(`Part ${i}: Unknown part type:`, Object.keys(part));
-                }
-            }
-        } else {
-            console.warn('No candidates or no parts in response');
-            console.log('Full response keys:', Object.keys(response));
-            if (response.candidates?.[0]) {
-                console.log('Candidate[0] keys:', Object.keys(response.candidates[0]));
-                if (response.candidates[0].content) {
-                    console.log('Content keys:', Object.keys(response.candidates[0].content));
+                    const spacesUrl = await uploadBufferToSpaces(outputBuffer, outputFilename, 'processed');
+                    return { success: true, originalUrl: imageUrl, spacesUrl, filename: outputFilename };
                 }
             }
         }
 
         console.warn('No image returned from Gemini, using original');
-        return {
-            success: false,
-            originalPath: imagePath,
-            processedPath: imagePath,
-            filename: path.basename(imagePath),
-            note: 'Processing returned no image - using original',
-        };
+        return { success: false, originalUrl: imageUrl, spacesUrl: imageUrl, filename: path.basename(imageUrl), note: 'Processing returned no image — using original' };
     } catch (error) {
         console.error(`Image processing error: ${error.message}`);
-        // Throw so the caller knows it failed (e.g. quota exceeded)
         throw new Error(`AI image processing failed: ${error.message}`);
     }
 }
@@ -136,31 +92,28 @@ Output ONLY the edited image.`,
 /**
  * Process multiple images sequentially
  */
-async function processImages(imagePaths, customApiKey = null, brandName = '', ourBrand = 'gigglo') {
+async function processImages(imageUrls, customApiKey = null, brandName = '', ourBrand = 'gigglo') {
     const results = [];
     let failCount = 0;
-    for (let i = 0; i < imagePaths.length; i++) {
-        console.log(`Processing image ${i + 1}/${imagePaths.length}...`);
+    for (let i = 0; i < imageUrls.length; i++) {
+        console.log(`Processing image ${i + 1}/${imageUrls.length}...`);
         try {
-            const result = await processImage(imagePaths[i], customApiKey, brandName, ourBrand);
+            const result = await processImage(imageUrls[i], customApiKey, brandName, ourBrand);
             results.push(result);
         } catch (err) {
             console.error(`Image ${i + 1} failed: ${err.message}`);
             failCount++;
-            // Fall back to original for this image in batch mode
             results.push({
                 success: false,
-                originalPath: imagePaths[i],
-                processedPath: imagePaths[i],
-                filename: path.basename(imagePaths[i]),
+                originalUrl: imageUrls[i],
+                spacesUrl: imageUrls[i],
+                filename: path.basename(imageUrls[i]),
                 error: err.message,
             });
         }
-        if (i < imagePaths.length - 1) {
-            await new Promise(r => setTimeout(r, 1000));
-        }
+        if (i < imageUrls.length - 1) await new Promise(r => setTimeout(r, 1000));
     }
-    if (failCount === imagePaths.length) {
+    if (failCount === imageUrls.length) {
         throw new Error(`All ${failCount} images failed to process. Check your API key quota.`);
     }
     return results;
@@ -169,25 +122,22 @@ async function processImages(imagePaths, customApiKey = null, brandName = '', ou
 /**
  * Process a SINGLE image with a user-provided custom prompt
  */
-async function processImageWithPrompt(imagePath, customPrompt, customApiKey = null) {
+async function processImageWithPrompt(imageUrl, customPrompt, customApiKey = null) {
     const client = getClient(customApiKey);
 
-    const imageBuffer = fs.readFileSync(imagePath);
+    // Download image from URL to buffer
+    const response = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 30000 });
+    const imageBuffer = Buffer.from(response.data);
     const base64Image = imageBuffer.toString('base64');
-    const mimeType = getMimeType(imagePath);
+    const mimeType = (response.headers['content-type'] || 'image/jpeg').split(';')[0].trim();
 
     try {
-        const response = await client.models.generateContent({
+        const aiResponse = await client.models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: [{
                 role: 'user',
                 parts: [
-                    {
-                        inlineData: {
-                            mimeType,
-                            data: base64Image,
-                        },
-                    },
+                    { inlineData: { mimeType, data: base64Image } },
                     {
                         text: `You are a precise product photo editor. Edit this product image according to the user's instructions below.
 
@@ -200,30 +150,20 @@ Output ONLY the edited image.`,
                     },
                 ],
             }],
-            config: {
-                responseModalities: ['IMAGE', 'TEXT'],
-            },
+            config: { responseModalities: ['IMAGE', 'TEXT'] },
         });
 
-        if (response.candidates && response.candidates[0]?.content?.parts) {
-            for (const part of response.candidates[0].content.parts) {
+        if (aiResponse.candidates?.[0]?.content?.parts) {
+            for (const part of aiResponse.candidates[0].content.parts) {
                 if (part.inlineData) {
                     const outputFilename = `processed_${uuidv4()}.png`;
-                    const outputPath = path.join(PROCESSED_DIR, outputFilename);
                     const outputBuffer = Buffer.from(part.inlineData.data, 'base64');
-                    fs.writeFileSync(outputPath, outputBuffer);
-                    console.log(`Image processed with custom prompt: ${outputPath}`);
-                    return {
-                        success: true,
-                        originalPath: imagePath,
-                        processedPath: outputPath,
-                        filename: outputFilename,
-                    };
+                    const spacesUrl = await uploadBufferToSpaces(outputBuffer, outputFilename, 'processed');
+                    return { success: true, originalUrl: imageUrl, spacesUrl, filename: outputFilename };
                 }
             }
         }
 
-        console.warn('No image returned for custom prompt');
         throw new Error('AI returned no edited image — the model may not have understood the prompt');
     } catch (error) {
         console.error(`Custom image processing error: ${error.message}`);

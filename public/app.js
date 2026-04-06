@@ -239,8 +239,7 @@ function renderPreview(data) {
             wrapper.className = 'image-wrapper';
 
             const imgEl = document.createElement('img');
-            const relativePath = img.localPath.split('/temp/')[1];
-            imgEl.src = `/temp/${relativePath}`;
+            imgEl.src = img.spacesUrl;  // Use DO Spaces URL directly
             imgEl.alt = 'Product image';
             imgEl.loading = 'lazy';
 
@@ -291,15 +290,15 @@ async function handleProcessImages() {
     showProgress('Processing images with AI...', 0);
 
     try {
-        const imagePaths = state.scrapedData.localImages.map(img => img.localPath);
+        const imageUrls = state.scrapedData.localImages.map(img => img.spacesUrl);
         const customApiKey = els.customApiKey.value.trim();
         const brand = els.productBrand.value.trim();
-        const ourBrand = els.ourBrandName.value.trim(); // empty = no brand overlay
+        const ourBrand = els.ourBrandName.value.trim();
 
         const res = await apiFetch('/api/process-images', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imagePaths, customApiKey, brand, ourBrand }),
+            body: JSON.stringify({ imageUrls, customApiKey, brand, ourBrand }),
         });
         if (!res) return;
         const data = await res.json();
@@ -327,8 +326,7 @@ function renderProcessedImages(results) {
         const card = document.createElement('div');
         card.className = 'processed-image-card';
         card.id = `processed-card-${index}`;
-        const relativePath = result.processedPath.split('/temp/')[1] || result.processedPath;
-        const imgSrc = `/temp/${relativePath}`;
+        const imgSrc = result.spacesUrl;
 
         card.innerHTML = `
             <div class="processed-image-wrapper">
@@ -364,13 +362,13 @@ async function handlePerImageRegenerate(index) {
     setButtonLoading(btn, true);
 
     try {
-        const imagePath = state.processedImages[index].processedPath;
+        const imageUrl = state.processedImages[index].spacesUrl;
         const customApiKey = els.customApiKey.value.trim();
 
         const res = await apiFetch('/api/process-image-custom', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imagePath, customPrompt, customApiKey }),
+            body: JSON.stringify({ imageUrl, customPrompt, customApiKey }),
         });
         if (!res) return;
         const data = await res.json();
@@ -378,8 +376,7 @@ async function handlePerImageRegenerate(index) {
 
         state.processedImages[index] = data.result;
         const img = card.querySelector('img');
-        const newRelativePath = data.result.processedPath.split('/temp/')[1] || data.result.processedPath;
-        img.src = `/temp/${newRelativePath}?t=${Date.now()}`;
+        img.src = data.result.spacesUrl + '?t=' + Date.now();
         showToast(`Image ${index + 1} regenerated!`, 'success');
     } catch (err) {
         showToast(`Regeneration failed: ${err.message}`, 'error');
@@ -451,9 +448,9 @@ async function handleCreateProduct() {
     showProgress('Creating product on Shopify...', 0);
 
     try {
-        const imagePaths = state.processedImages.length > 0
-            ? state.processedImages.map(img => img.processedPath)
-            : state.scrapedData?.localImages?.map(img => img.localPath) || [];
+        const imageUrls = state.processedImages.length > 0
+            ? state.processedImages.map(img => img.spacesUrl)
+            : state.scrapedData?.localImages?.map(img => img.spacesUrl) || [];
 
         showProgress('Uploading images...', 20);
 
@@ -464,7 +461,7 @@ async function handleCreateProduct() {
                 title,
                 bodyHtml: state.descriptionHtml || '',
                 descriptionJSON: state.descriptionJSON || null,
-                imagePaths,
+                imageUrls,
                 price: els.finalPrice.value || '0.00',
                 vendor: els.productVendor.value || '',
                 productType: els.productType.value || '',
@@ -508,19 +505,13 @@ async function handleCreateProduct() {
 // ============================================================
 
 function getProcessedImageUrls() {
-    // Use AI-processed images if available
+    // Use AI-processed images if available (Spaces URLs)
     if (state.processedImages.length > 0) {
-        return state.processedImages.map(img => {
-            const relativePath = img.processedPath.split('/temp/')[1] || img.processedPath;
-            return `/temp/${relativePath}`;
-        });
+        return state.processedImages.map(img => img.spacesUrl);
     }
-    // Fall back to original scraped images (when AI processing was skipped)
+    // Fall back to original scraped images
     if (state.scrapedData?.localImages?.length > 0) {
-        return state.scrapedData.localImages.map(img => {
-            const relativePath = img.localPath.split('/temp/')[1] || img.localPath;
-            return `/temp/${relativePath}`;
-        });
+        return state.scrapedData.localImages.map(img => img.spacesUrl);
     }
     return [];
 }

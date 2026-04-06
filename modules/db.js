@@ -1,20 +1,22 @@
-const mongoose = require('mongoose');
+/**
+ * Prisma DB client — replaces mongoose connection
+ * Uses DigitalOcean Managed PostgreSQL
+ */
 
-let isConnected = false;
+const { PrismaClient } = require('@prisma/client');
+
+const prisma = new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+});
 
 async function connectDB() {
-    if (isConnected) return;
-
     try {
-        await mongoose.connect(process.env.MONGODB_URI, {
-            serverSelectionTimeoutMS: 10000,
-        });
-        isConnected = true;
-        console.log('✅ MongoDB connected');
+        await prisma.$connect();
+        console.log('✅ PostgreSQL connected (DigitalOcean)');
     } catch (err) {
-        console.error('❌ MongoDB connection failed:', err.message);
+        console.error('❌ PostgreSQL connection failed:', err.message);
         process.exit(1);
     }
 }
 
-module.exports = { connectDB };
+module.exports = { prisma, connectDB };
