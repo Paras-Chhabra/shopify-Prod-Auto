@@ -4,6 +4,7 @@
   "description": "AI-powered Shopify product automation tool - scrape, process, and upload products automatically",
   "main": "server.js",
   "scripts": {
+    "postinstall": "prisma generate",
     "start": "node server.js",
     "dev": "node --watch server.js"
   },
