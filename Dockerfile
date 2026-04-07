@@ -8,7 +8,6 @@ RUN apt-get update && apt-get install -y \
     fonts-wqy-zenhei \
     fonts-noto-cjk \
     libxss1 \
-    libgconf-2-4 \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
@@ -18,15 +17,15 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
-# Copy package files first (layer cache optimization)
+# Copy package files AND prisma schema BEFORE npm install
+# (needed because postinstall runs "prisma generate" which requires the schema)
 COPY package*.json ./
+COPY prisma ./prisma/
+
+# Install dependencies (postinstall will run prisma generate with schema present)
 RUN npm install
 
-# Copy Prisma schema and generate client
-COPY prisma ./prisma/
-RUN npx prisma generate
-
-# Copy rest of the source
+# Copy the rest of the source code
 COPY . .
 
 EXPOSE 3000
