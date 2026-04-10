@@ -213,6 +213,37 @@ app.post('/api/scrape', async (req, res) => {
     }
 });
 
+// ── Manual image upload → DO Spaces ──
+const multer = require('multer');
+const { uploadBufferToSpaces } = require('./modules/storage');
+const multerUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB per file
+    fileFilter: (_, file, cb) => {
+        const ok = /^image\/(jpeg|png|gif|webp|bmp)|^video\/(mp4|webm|quicktime)$/.test(file.mimetype);
+        cb(null, ok);
+    },
+});
+
+app.post('/api/upload-images', multerUpload.array('images', 20), async (req, res) => {
+    try {
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ success: false, error: 'No files received' });
+        }
+        const results = [];
+        for (const file of req.files) {
+            const ext = file.originalname.split('.').pop().toLowerCase() || 'jpg';
+            const filename = `upload_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+            const spacesUrl = await uploadBufferToSpaces(file.buffer, filename, 'uploads');
+            results.push({ spacesUrl, filename, originalName: file.originalname });
+        }
+        res.json({ success: true, files: results });
+    } catch (err) {
+        console.error('Upload error:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 app.post('/api/process-images', async (req, res) => {
     try {
         const { imageUrls, customApiKey, brand, ourBrand } = req.body;

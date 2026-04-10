@@ -218,6 +218,9 @@ async function handleFetch() {
     }
 }
 
+// ---- Drag state ----
+let dragSrcIndex = null;
+
 function renderPreview(data) {
     els.previewSection.classList.remove('hidden');
     els.productTitle.value = data.title || '';
@@ -233,47 +236,140 @@ function renderPreview(data) {
     els.finalCurrency.value = data.currency || 'INR';
 
     els.originalImages.innerHTML = '';
-    if (data.localImages && data.localImages.length > 0) {
-        data.localImages.forEach((img, index) => {
+
+    const images = data.localImages || [];
+
+    if (images.length > 0) {
+        images.forEach((img, index) => {
             const wrapper = document.createElement('div');
             wrapper.className = 'image-wrapper';
+            wrapper.draggable = true;
+            wrapper.dataset.index = index;
 
-            const imgEl = document.createElement('img');
-            imgEl.src = img.spacesUrl;  // Use DO Spaces URL directly
-            imgEl.alt = 'Product image';
-            imgEl.loading = 'lazy';
+            // Position badge
+            const badge = document.createElement('div');
+            badge.className = 'img-badge' + (index < 3 ? ' img-badge-active' : '');
+            badge.textContent = index + 1;
+            badge.title = index < 3 ? 'Used in AI description' : 'Not in description (drag to reorder)';
 
+            // Media element
+            const isVideo = img.spacesUrl && /\.(mp4|webm|mov)(\?|$)/i.test(img.spacesUrl);
+            let mediaEl;
+            if (isVideo) {
+                mediaEl = document.createElement('video');
+                mediaEl.src = img.spacesUrl;
+                mediaEl.muted = true;
+                mediaEl.loop = true;
+                mediaEl.playsInline = true;
+                mediaEl.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:8px;';
+                mediaEl.addEventListener('mouseenter', () => mediaEl.play());
+                mediaEl.addEventListener('mouseleave', () => mediaEl.pause());
+            } else {
+                mediaEl = document.createElement('img');
+                mediaEl.src = img.spacesUrl;
+                mediaEl.alt = 'Product image';
+                mediaEl.loading = 'lazy';
+            }
+
+            // Delete button
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'delete-btn';
             deleteBtn.innerHTML = '✕';
             deleteBtn.title = 'Remove this image';
-            deleteBtn.onclick = () => {
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
                 data.localImages.splice(index, 1);
-                if (data.images && data.images.length > index) data.images.splice(index, 1);
                 renderPreview(data);
             };
 
-            wrapper.appendChild(imgEl);
+            // Drag events
+            wrapper.addEventListener('dragstart', (e) => {
+                dragSrcIndex = index;
+                wrapper.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            wrapper.addEventListener('dragend', () => {
+                wrapper.classList.remove('dragging');
+                document.querySelectorAll('.image-wrapper').forEach(w => w.classList.remove('drag-over'));
+            });
+            wrapper.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                document.querySelectorAll('.image-wrapper').forEach(w => w.classList.remove('drag-over'));
+                wrapper.classList.add('drag-over');
+            });
+            wrapper.addEventListener('drop', (e) => {
+                e.preventDefault();
+                wrapper.classList.remove('drag-over');
+                if (dragSrcIndex === null || dragSrcIndex === index) return;
+                // Reorder
+                const moved = data.localImages.splice(dragSrcIndex, 1)[0];
+                data.localImages.splice(index, 0, moved);
+                dragSrcIndex = null;
+                renderPreview(data);
+            });
+
+            wrapper.appendChild(badge);
+            wrapper.appendChild(mediaEl);
             wrapper.appendChild(deleteBtn);
-            els.originalImages.appendChild(wrapper);
-        });
-    } else if (data.images && data.images.length > 0) {
-        data.images.forEach((url, index) => {
-            const wrapper = document.createElement('div');
-            wrapper.className = 'image-wrapper';
-            const imgEl = document.createElement('img');
-            imgEl.src = url; imgEl.alt = 'Product image'; imgEl.loading = 'lazy';
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'delete-btn'; deleteBtn.innerHTML = '✕';
-            deleteBtn.onclick = () => { data.images.splice(index, 1); renderPreview(data); };
-            wrapper.appendChild(imgEl); wrapper.appendChild(deleteBtn);
             els.originalImages.appendChild(wrapper);
         });
     } else {
         els.originalImages.innerHTML = '<p class="empty-state">No images found</p>';
     }
 
+    // Upload button (after images)
+    const uploadZone = document.createElement('div');
+    uploadZone.className = 'upload-zone';
+    uploadZone.innerHTML = `
+        <input type="file" id="imageUploadInput" multiple accept="image/*,video/mp4,video/webm" style="display:none">
+        <button class="upload-zone-btn" onclick="document.getElementById('imageUploadInput').click()">
+            <span style="font-size:20px;">📤</span>
+            <span>Upload Images</span>
+            <span style="font-size:11px;color:var(--text-muted);">JPG, PNG, WebP, MP4</span>
+        </button>
+    `;
+    uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+    uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadZone.classList.remove('drag-over');
+        if (e.dataTransfer.files.length) handleImageUpload(e.dataTransfer.files);
+    });
+    els.originalImages.appendChild(uploadZone);
+
+    // Wire up file input inside the newly-added zone
+    const fileInput = document.getElementById('imageUploadInput');
+    if (fileInput) fileInput.addEventListener('change', (e) => handleImageUpload(e.target.files));
+
     els.previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function handleImageUpload(files) {
+    if (!files || files.length === 0) return;
+    if (!state.scrapedData) { showToast('Please fetch a product first', 'warning'); return; }
+
+    showToast(`Uploading ${files.length} file(s)...`, 'info');
+
+    const formData = new FormData();
+    for (const file of files) formData.append('images', file);
+
+    try {
+        const res = await apiFetch('/api/upload-images', { method: 'POST', body: formData });
+        if (!res) return;
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        if (!state.scrapedData.localImages) state.scrapedData.localImages = [];
+        for (const f of data.files) {
+            state.scrapedData.localImages.push({ spacesUrl: f.spacesUrl, filename: f.filename });
+        }
+
+        renderPreview(state.scrapedData);
+        showToast(`${data.files.length} image(s) uploaded successfully!`, 'success');
+    } catch (err) {
+        showToast(`Upload failed: ${err.message}`, 'error');
+    }
 }
 
 // ============================================================
